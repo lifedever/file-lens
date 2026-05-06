@@ -29,22 +29,20 @@ struct SidebarView: View {
                 Section {
                     if !collapsed.contains(ws.id) {
                         // "All files" — pick the workspace itself
-                        Label {
-                            Text("All files")
-                        } icon: {
-                            folderIcon(for: ws)
-                        }
-                        .badge(ws.files.filter { $0.isPresent }.count)
+                        rowLabel(
+                            text: Text("All files"),
+                            count: ws.files.filter { $0.isPresent }.count,
+                            icon: AnyView(folderIcon(for: ws))
+                        )
                         .tag(SidebarSelection.workspace(ws.id))
 
                         // User rules → tag rows
                         ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
-                            Label {
-                                Text(verbatim: TagDisplay.localizedName(rule.name))
-                            } icon: {
-                                symbolIcon("tag.fill").foregroundStyle(.tint)
-                            }
-                            .badge(filesCount(for: ws, tag: rule.name))
+                            rowLabel(
+                                text: Text(verbatim: TagDisplay.localizedName(rule.name)),
+                                count: filesCount(for: ws, tag: rule.name),
+                                icon: AnyView(symbolIcon("tag.fill").foregroundStyle(.tint))
+                            )
                             .opacity(rule.enabled ? 1.0 : 0.5)
                             .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
                             .contextMenu {
@@ -75,20 +73,18 @@ struct SidebarView: View {
                             .listRowSeparator(.hidden)
 
                         // System rows
-                        Label {
-                            Text("Uncategorized")
-                        } icon: {
-                            symbolIcon("questionmark.circle").foregroundStyle(.secondary)
-                        }
-                        .badge(uncategorizedCount(for: ws))
+                        rowLabel(
+                            text: Text("Uncategorized"),
+                            count: uncategorizedCount(for: ws),
+                            icon: AnyView(symbolIcon("questionmark.circle").foregroundStyle(.secondary))
+                        )
                         .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
 
-                        Label {
-                            Text("Trashed")
-                        } icon: {
-                            symbolIcon("trash").foregroundStyle(.secondary)
-                        }
-                        .badge(trashedCount(for: ws))
+                        rowLabel(
+                            text: Text("Trashed"),
+                            count: trashedCount(for: ws),
+                            icon: AnyView(symbolIcon("trash").foregroundStyle(.secondary))
+                        )
                         .tag(SidebarSelection.trashed(workspaceID: ws.id))
                     }
                 } header: {
@@ -150,6 +146,23 @@ struct SidebarView: View {
         }
     }
 
+    // MARK: Row label with custom count badge
+
+    @ViewBuilder
+    private func rowLabel(text: Text, count: Int, icon: AnyView) -> some View {
+        Label {
+            HStack(spacing: 6) {
+                text
+                Spacer(minLength: 4)
+                if count > 0 {
+                    CountBadge(count: count)
+                }
+            }
+        } icon: {
+            icon
+        }
+    }
+
     // MARK: Workspace section header (collapsible folder row)
 
     @ViewBuilder
@@ -192,7 +205,6 @@ struct SidebarView: View {
             .frame(width: kIconSize, height: kIconSize)
     }
 
-    /// Caller applies .foregroundStyle(...) to color the symbol.
     private func symbolIcon(_ name: String) -> some View {
         Image(systemName: name)
             .resizable()
@@ -215,3 +227,17 @@ struct SidebarView: View {
     }
 }
 
+// Mail-style rounded pill count badge
+private struct CountBadge: View {
+    let count: Int
+    var body: some View {
+        Text("\(count)")
+            .font(.caption.monospacedDigit().weight(.semibold))
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 1)
+            .background(
+                Capsule().fill(Color.secondary.opacity(0.18))
+            )
+    }
+}

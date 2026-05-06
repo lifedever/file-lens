@@ -99,6 +99,7 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .navigationTitle(windowTitle)
         .sheet(item: $pendingWorkspace) { pending in
             FirstRunRulePicker(
                 folderName: pending.url.lastPathComponent,
@@ -255,6 +256,23 @@ struct ContentView: View {
     private func quickLookSelected() {
         guard let f = selectedFile, let url = FileActions.url(for: f) else { return }
         QuickLookCoordinator.shared.show(urls: [url])
+    }
+
+    /// Window title reflects the current workspace + sidebar selection,
+    /// e.g. "Downloads — 安装包" or "Downloads — 无标签". Defaults to "FileLens"
+    /// when nothing has been picked yet.
+    private var windowTitle: String {
+        guard let ws = selectedWorkspace else { return "FileLens" }
+        switch selection {
+        case .tag(_, let name):
+            return "\(ws.name) — \(TagDisplay.localizedName(name))"
+        case .uncategorized:
+            return "\(ws.name) — \(NSLocalizedString("Uncategorized", value: "Uncategorized", comment: ""))"
+        case .trashed:
+            return "\(ws.name) — \(NSLocalizedString("Trashed", value: "Trashed", comment: ""))"
+        case .workspace, .none:
+            return ws.name
+        }
     }
 
     private var byteFormatter: ByteCountFormatter {

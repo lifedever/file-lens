@@ -15,15 +15,14 @@ struct FileLensApp: App {
         } catch {
             fatalError("Failed to init ModelContainer: \(error)")
         }
-
-        // Apply persisted appearance preference (Light/Dark/System) at launch.
-        let raw = UserDefaults.standard.string(forKey: "filelens.appearance") ?? AppearancePreference.system.rawValue
-        (AppearancePreference(rawValue: raw) ?? .system).apply()
+        // Note: do NOT call NSApp.* here — NSApplication is not yet initialized
+        // at SwiftUI App.init() time. Apply appearance from .onAppear below.
     }
 
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .onAppear { applyPersistedAppearance() }
         }
         .modelContainer(container)
 
@@ -31,5 +30,10 @@ struct FileLensApp: App {
             SettingsView()
         }
         .modelContainer(container)
+    }
+
+    private func applyPersistedAppearance() {
+        let raw = UserDefaults.standard.string(forKey: "filelens.appearance") ?? AppearancePreference.system.rawValue
+        (AppearancePreference(rawValue: raw) ?? .system).apply()
     }
 }
