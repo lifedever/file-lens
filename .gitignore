@@ -1,0 +1,30 @@
+# macOS
+.DS_Store
+*.swp
+
+# Xcode
+build/
+DerivedData/
+*.xcworkspace/xcuserdata/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+*.xccheckout
+
+# SPM
+.build/
+.swiftpm/
+Packages/
+Package.resolved.bak
+
+# Distribution artifacts
+*.dmg
+*.app.zip
+dist/
+
+# Local overrides
+.env
+.env.local
+*.local.json
