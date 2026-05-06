@@ -3,6 +3,7 @@ import SwiftUI
 struct FileTableView: View {
     let files: [FileNode]
     @State private var sortOrder = [KeyPathComparator(\FileNode.dateAdded, order: .reverse)]
+    @Environment(\.modelContext) private var modelContext
 
     var body: some View {
         Table(files.sorted(using: sortOrder), sortOrder: $sortOrder) {
@@ -37,6 +38,20 @@ struct FileTableView: View {
                     .foregroundStyle(.secondary)
             }
             .width(80)
+        }
+        .contextMenu(forSelectionType: FileNode.ID.self) { selection in
+            if let id = selection.first, let f = files.first(where: { $0.id == id }) {
+                Button("Reveal in Finder") { FileActions.reveal(f) }
+                Button("Open With Default App") { FileActions.open(f) }
+                Divider()
+                Button("Move to Trash", role: .destructive) {
+                    FileActions.moveToTrash(f, modelContext: modelContext)
+                }
+            }
+        } primaryAction: { selection in
+            if let id = selection.first, let f = files.first(where: { $0.id == id }) {
+                FileActions.open(f)
+            }
         }
     }
 

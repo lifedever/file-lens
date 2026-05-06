@@ -25,6 +25,7 @@
 		82A727A8C0376D61E1BDD342 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F5A619BA90CF8F861C2F42B /* GalleryView.swift */; };
 		82C50720487DE41E2F1EA732 /* SmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80614E329F6887741C6CD472 /* SmokeTest.swift */; };
 		97A7EC8B05EFDB6A1442B25B /* Workspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57FC96CE6EB7EA1592EC8277 /* Workspace.swift */; };
+		9CE00AA429D40322D32B97E1 /* FileActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DE16EA8F33244232D877BD8 /* FileActions.swift */; };
 		A2F4C3BE46B4561CD3ED926C /* ConditionEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4BE5D538DBF09A954ADBE7 /* ConditionEvaluatorTests.swift */; };
 		A75A67CD151F61F8D9DE1690 /* KindClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3056F15ECF7AD4765009315 /* KindClassifier.swift */; };
 		A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7944B285B52C768330CAC0E /* FileTag.swift */; };
@@ -61,6 +62,7 @@
 		44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigration.swift; sourceTree = "<group>"; };
 		57FC96CE6EB7EA1592EC8277 /* Workspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workspace.swift; sourceTree = "<group>"; };
 		5CAA54EFF677ED6497E10C6E /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		5DE16EA8F33244232D877BD8 /* FileActions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileActions.swift; sourceTree = "<group>"; };
 		5F5A619BA90CF8F861C2F42B /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 		6809B84FD4ECE32202A026DE /* RuleEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleEngineTests.swift; sourceTree = "<group>"; };
 		7918D2D372655629E017695D /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
@@ -93,6 +95,7 @@
 				7918D2D372655629E017695D /* BookmarkStore.swift */,
 				81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */,
 				B799D07B0CA5F7C128D52050 /* ConditionEvaluator.swift */,
+				5DE16EA8F33244232D877BD8 /* FileActions.swift */,
 				D512404F714AB5C047E39035 /* FileIndexer.swift */,
 				8708E9405532B156A0EBAD32 /* FolderWatcher.swift */,
 				E3056F15ECF7AD4765009315 /* KindClassifier.swift */,
@@ -300,6 +303,7 @@
 				F090A71C8D9ED6D527B6ACC7 /* ConditionEvaluator.swift in Sources */,
 				76B88F61FC0D0B51A976B622 /* ContentView.swift in Sources */,
 				F1900CADCDF077FABDB06686 /* EmptyStateView.swift in Sources */,
+				9CE00AA429D40322D32B97E1 /* FileActions.swift in Sources */,
 				4A13DC334C4554C920BBADB9 /* FileGridView.swift in Sources */,
 				E4CEAF3C49D444C42335A4B3 /* FileIndexer.swift in Sources */,
 				D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */,

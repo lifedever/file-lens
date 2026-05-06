@@ -5,6 +5,7 @@ import AppKit
 struct FileGridView: View {
     let files: [FileNode]
     @State private var thumbs: [UUID: NSImage] = [:]
+    @Environment(\.modelContext) private var modelContext
 
     private let columns = [GridItem(.adaptive(minimum: 110, maximum: 160), spacing: 12)]
 
@@ -15,6 +16,15 @@ struct FileGridView: View {
                     FileGridItem(file: file, image: thumbs[file.id])
                         .task(id: file.id) {
                             await loadThumb(for: file)
+                        }
+                        .onTapGesture(count: 2) { FileActions.open(file) }
+                        .contextMenu {
+                            Button("Reveal in Finder") { FileActions.reveal(file) }
+                            Button("Open With Default App") { FileActions.open(file) }
+                            Divider()
+                            Button("Move to Trash", role: .destructive) {
+                                FileActions.moveToTrash(file, modelContext: modelContext)
+                            }
                         }
                 }
             }
