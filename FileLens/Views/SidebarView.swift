@@ -20,28 +20,33 @@ struct SidebarView: View {
 
     var body: some View {
         List(selection: $selection) {
-            Section("Workspaces") {
-                ForEach(workspaces) { ws in
-                    DisclosureGroup(isExpanded: expansionBinding(for: ws.id)) {
+            ForEach(workspaces) { ws in
+                Section {
+                    if !collapsed.contains(ws.id) {
+                        // "All files" row for the workspace
+                        Label {
+                            Text("All files")
+                        } icon: {
+                            Image(systemName: "folder")
+                                .foregroundStyle(.tint)
+                        }
+                        .badge(ws.files.filter { $0.isPresent }.count)
+                        .tag(SidebarSelection.workspace(ws.id))
+
                         // Tag rows
                         ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
-                            Label {
-                                Text(verbatim: TagDisplay.localizedName(rule.name))
-                            } icon: {
-                                Image(systemName: "tag")
-                            }
-                            .badge(filesCount(for: ws, tag: rule.name))
-                            .opacity(rule.enabled ? 1.0 : 0.5)
-                            .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name) as SidebarSelection?)
-                            .contextMenu {
-                                Button("Edit Rule…") { onEditRule(rule) }
-                                Button(rule.enabled ? "Disable" : "Enable") {
-                                    rule.enabled.toggle()
+                            Label(TagDisplay.localizedName(rule.name), systemImage: "tag")
+                                .badge(filesCount(for: ws, tag: rule.name))
+                                .opacity(rule.enabled ? 1.0 : 0.5)
+                                .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
+                                .contextMenu {
+                                    Button("Edit Rule…") { onEditRule(rule) }
+                                    Button(rule.enabled ? "Disable" : "Enable") {
+                                        rule.enabled.toggle()
+                                    }
                                 }
-                            }
                         }
 
-                        // New Rule button (not selectable)
                         Button {
                             onNewRule()
                         } label: {
@@ -53,26 +58,18 @@ struct SidebarView: View {
                         // System rows
                         Label("Uncategorized", systemImage: "questionmark.circle")
                             .badge(uncategorizedCount(for: ws))
-                            .tag(SidebarSelection.uncategorized(workspaceID: ws.id) as SidebarSelection?)
+                            .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
 
                         Label("Trashed", systemImage: "trash")
                             .badge(trashedCount(for: ws))
-                            .tag(SidebarSelection.trashed(workspaceID: ws.id) as SidebarSelection?)
-                    } label: {
-                        let isActive = ws.id == selectedWorkspace?.id
-                        Label {
-                            Text(ws.name)
-                                .fontWeight(isActive ? .semibold : .regular)
-                                .lineLimit(1)
-                        } icon: {
-                            Image(systemName: isActive ? "folder.fill" : "folder")
-                                .foregroundStyle(.tint)
-                        }
-                        .badge(ws.files.filter { $0.isPresent }.count)
+                            .tag(SidebarSelection.trashed(workspaceID: ws.id))
                     }
-                    .tag(SidebarSelection.workspace(ws.id) as SidebarSelection?)
+                } header: {
+                    workspaceSectionHeader(ws)
                 }
+            }
 
+            Section {
                 Button {
                     onAddFolder()
                 } label: {
@@ -84,13 +81,9 @@ struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .onChange(of: selection) { _, sel in
-            // Selecting any row in a workspace activates that workspace
-            // so the file view filters correctly.
             switch sel {
             case .workspace(let id):
-                if let ws = workspaces.first(where: { $0.id == id }) {
-                    selectedWorkspace = ws
-                }
+                if let ws = workspaces.first(where: { $0.id == id }) { selectedWorkspace = ws }
             case .tag(let wsID, _),
                  .uncategorized(let wsID),
                  .trashed(let wsID):
@@ -104,14 +97,28 @@ struct SidebarView: View {
         }
     }
 
-    private func expansionBinding(for id: UUID) -> Binding<Bool> {
-        Binding(
-            get: { !collapsed.contains(id) },
-            set: { isExpanded in
-                if isExpanded { collapsed.remove(id) }
-                else          { collapsed.insert(id) }
-            }
-        )
+    @ViewBuilder
+    private func workspaceSectionHeader(_ ws: Workspace) -> some View {
+        let isCollapsed = collapsed.contains(ws.id)
+        HStack(spacing: 6) {
+            Image(systemName: "chevron.right")
+                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Image(systemName: "folder.fill")
+                .foregroundStyle(.tint)
+                .font(.caption)
+            Text(ws.name)
+                .font(.subheadline.bold())
+                .foregroundStyle(.primary)
+            Spacer()
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if isCollapsed { collapsed.remove(ws.id) }
+            else           { collapsed.insert(ws.id) }
+        }
+        .padding(.vertical, 2)
     }
 
     private func filesCount(for ws: Workspace, tag: String) -> Int {
