@@ -49,17 +49,20 @@ struct SidebarView: View {
                         }
                     }
 
-                    // New Rule button (not selectable)
-                    Button {
-                        onNewRule()
-                    } label: {
-                        Label {
-                            Text("New Rule…").foregroundStyle(.secondary)
-                        } icon: {
-                            symbolIcon("plus").foregroundStyle(.secondary)
-                        }
+                    // New Rule footer link — plain tappable row, no Button
+                    // wrapper (Button inside List(selection:) renders an
+                    // intrusive blue highlight). listRowBackground/separator
+                    // suppress any row chrome the list would add.
+                    HStack(spacing: 6) {
+                        symbolIcon("plus").foregroundStyle(.secondary)
+                        Text("New Rule…").foregroundStyle(.secondary)
+                            .font(.caption)
+                        Spacer()
                     }
-                    .buttonStyle(.plain)
+                    .contentShape(Rectangle())
+                    .onTapGesture { onNewRule() }
+                    .listRowBackground(Color.clear)
+                    .listRowSeparator(.hidden)
 
                     // Visual breathing room before System rows
                     Color.clear.frame(height: 6).listRowSeparator(.hidden)
@@ -89,16 +92,14 @@ struct SidebarView: View {
                 .tag(SidebarSelection.workspace(ws.id))
             }
 
-            Button {
-                onAddFolder()
-            } label: {
-                Label {
-                    Text("Add Folder…").foregroundStyle(.secondary)
-                } icon: {
-                    symbolIcon("plus").foregroundStyle(.secondary)
-                }
+            HStack(spacing: 6) {
+                symbolIcon("plus").foregroundStyle(.secondary)
+                Text("Add Folder…").foregroundStyle(.secondary)
+                Spacer()
             }
-            .buttonStyle(.plain)
+            .contentShape(Rectangle())
+            .onTapGesture { onAddFolder() }
+            .listRowBackground(Color.clear)
         }
         .listStyle(.sidebar)
         .onChange(of: selection) { _, sel in
