@@ -3,6 +3,15 @@ import SwiftData
 
 enum ViewMode: Int { case grid = 1, list = 2, gallery = 4 }
 
+/// Bundle for the first-run rule picker sheet. Lets us use .sheet(item:),
+/// which guarantees the closure receives the actual data and avoids the
+/// timing bug we hit with multiple independent @State + .sheet(isPresented:).
+struct PendingWorkspace: Identifiable {
+    let id = UUID()
+    let url: URL
+    let rules: [Rule]
+}
+
 struct ContentView: View {
     @State private var selectedWorkspace: Workspace?
     @State private var selection: SidebarSelection?
@@ -10,9 +19,7 @@ struct ContentView: View {
     @State private var viewMode: ViewMode = .grid
     @State private var selectedFile: FileNode?
     @State private var showInspector: Bool = false
-    @State private var pendingWorkspaceURL: URL?
-    @State private var pendingRules: [Rule] = []
-    @State private var showFirstRunPicker: Bool = false
+    @State private var pendingWorkspace: PendingWorkspace?
     @State private var editingRule: Rule?
     @State private var searchText: String = ""
     @Environment(\.modelContext) private var modelContext
@@ -83,15 +90,15 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
-        .sheet(isPresented: $showFirstRunPicker) {
+        .sheet(item: $pendingWorkspace) { pending in
             FirstRunRulePicker(
-                folderName: pendingWorkspaceURL?.lastPathComponent ?? "",
-                rules: pendingRules,
-                onConfirm: commitWorkspace,
+                folderName: pending.url.lastPathComponent,
+                rules: pending.rules,
+                onConfirm: { enabledIDs in
+                    commitWorkspace(pending: pending, enabledRuleIDs: enabledIDs)
+                },
                 onCancel: {
-                    pendingWorkspaceURL = nil
-                    pendingRules = []
-                    showFirstRunPicker = false
+                    pendingWorkspace = nil
                 }
             )
         }
@@ -165,18 +172,17 @@ struct ContentView: View {
         panel.allowsMultipleSelection = false
         panel.prompt = "Add Folder"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        pendingWorkspaceURL = url
-        pendingRules = BuiltInRules.all()
-        showFirstRunPicker = true
+        pendingWorkspace = PendingWorkspace(url: url, rules: BuiltInRules.all())
     }
 
-    private func commitWorkspace(enabledRuleIDs: Set<UUID>) {
-        guard let url = pendingWorkspaceURL else { return }
+    private func commitWorkspace(pending: PendingWorkspace, enabledRuleIDs: Set<UUID>) {
         do {
-            let bookmark = try BookmarkStore.makeBookmark(for: url)
-            let ws = Workspace(name: url.lastPathComponent, folderPath: url.path, bookmarkData: bookmark)
+            let bookmark = try BookmarkStore.makeBookmark(for: pending.url)
+            let ws = Workspace(name: pending.url.lastPathComponent,
+                               folderPath: pending.url.path,
+                               bookmarkData: bookmark)
             modelContext.insert(ws)
-            for rule in pendingRules where enabledRuleIDs.contains(rule.id) {
+            for rule in pending.rules where enabledRuleIDs.contains(rule.id) {
                 rule.workspace = ws
                 modelContext.insert(rule)
             }
@@ -185,9 +191,7 @@ struct ContentView: View {
         } catch {
             NSAlert(error: error).runModal()
         }
-        pendingWorkspaceURL = nil
-        pendingRules = []
-        showFirstRunPicker = false
+        pendingWorkspace = nil
     }
 
     private func newRule() {
