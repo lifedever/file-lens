@@ -19,8 +19,7 @@ struct FileLensApp: App {
 
     var body: some Scene {
         WindowGroup {
-            Text("FileLens")
-                .frame(minWidth: 800, minHeight: 500)
+            ContentView()
         }
         .modelContainer(container)
     }
