@@ -3,42 +3,75 @@ import AppKit
 
 struct FileTableView: View {
     let files: [FileNode]
-    @State private var sortOrder = [KeyPathComparator(\FileNode.dateAdded, order: .reverse)]
+    @Binding var selectedFile: FileNode?
     @Environment(\.modelContext) private var modelContext
 
+    private var grouped: [(bucket: DateBucket, files: [FileNode])] {
+        var byBucket: [DateBucket: [FileNode]] = [:]
+        for f in files {
+            byBucket[DateBucket.bucket(for: f.dateAdded), default: []].append(f)
+        }
+        return DateBucket.allCases.compactMap { b in
+            guard let arr = byBucket[b], !arr.isEmpty else { return nil }
+            return (b, arr.sorted { $0.dateAdded > $1.dateAdded })
+        }
+    }
+
+    private var selectionBinding: Binding<FileNode.ID?> {
+        Binding(
+            get: { selectedFile?.id },
+            set: { id in
+                selectedFile = files.first { $0.id == id }
+            }
+        )
+    }
+
     var body: some View {
-        Table(files.sorted(using: sortOrder), sortOrder: $sortOrder) {
-            TableColumn("Name", value: \.name) { f in
-                HStack {
-                    Image(systemName: kindIcon(f.kind))
-                    Text(f.name)
+        Table(of: FileNode.self, selection: selectionBinding) {
+            TableColumn("Name") { f in
+                HStack(spacing: 6) {
+                    Image(nsImage: icon(for: f))
+                        .resizable().interpolation(.high)
+                        .scaledToFit().frame(width: 18, height: 18)
+                    Text(f.name).lineLimit(1).truncationMode(.middle)
                 }
             }
-            TableColumn("Size", value: \.size) { f in
+
+            TableColumn("Size") { f in
                 Text(byteFormatter.string(fromByteCount: f.size))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             .width(80)
 
-            TableColumn("Date Added", value: \.dateAdded) { f in
+            TableColumn("Date Added") { f in
                 Text(f.dateAdded, style: .date)
                     .foregroundStyle(.secondary)
             }
             .width(120)
 
             TableColumn("Tags") { (f: FileNode) in
-                Text(f.tags.map(\.name).joined(separator: ", "))
+                Text(f.tags.map { TagDisplay.localizedName($0.name) }.joined(separator: ", "))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
 
             TableColumn("Kind") { (f: FileNode) in
-                Text(f.kind.capitalized)
+                Text(KindDisplay.localizedName(f.kind))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
             .width(80)
+        } rows: {
+            ForEach(grouped, id: \.bucket) { group in
+                Section(group.bucket.localizedTitle) {
+                    ForEach(group.files) { f in
+                        TableRow(f)
+                    }
+                }
+            }
         }
         .contextMenu(forSelectionType: FileNode.ID.self) { selection in
             if let id = selection.first, let f = files.first(where: { $0.id == id }) {
@@ -53,7 +86,7 @@ struct FileTableView: View {
                 Menu("Add Tag") {
                     let existing = workspaceTags(for: f)
                     ForEach(existing, id: \.self) { tag in
-                        Button(tag) { addTag(tag, to: f) }
+                        Button(TagDisplay.localizedName(tag)) { addTag(tag, to: f) }
                     }
                     if !existing.isEmpty { Divider() }
                     Button("New Tag…") { promptNewTag(for: f) }
@@ -61,7 +94,7 @@ struct FileTableView: View {
                 if f.tags.contains(where: { $0.source == "manual" }) {
                     Menu("Remove Tag") {
                         ForEach(f.tags.filter { $0.source == "manual" }) { tag in
-                            Button(tag.name) { removeManualTag(tag) }
+                            Button(TagDisplay.localizedName(tag.name)) { removeManualTag(tag) }
                         }
                     }
                 }
@@ -77,26 +110,16 @@ struct FileTableView: View {
         }
     }
 
-    private var byteFormatter: ByteCountFormatter {
-        let f = ByteCountFormatter()
-        f.countStyle = .file
-        return f
-    }
-
-    private func kindIcon(_ k: String) -> String {
-        switch k {
-        case "image": return "photo"
-        case "movie": return "film"
-        case "audio": return "music.note"
-        case "archive": return "archivebox"
-        case "code": return "chevron.left.forwardslash.chevron.right"
-        case "document": return "doc"
-        case "text": return "doc.text"
-        default: return "doc"
+    private func icon(for f: FileNode) -> NSImage {
+        if let url = FileActions.url(for: f) {
+            return NSWorkspace.shared.icon(forFile: url.path)
         }
+        return NSWorkspace.shared.icon(for: .data)
     }
 
-    // MARK: - Manual tag helpers
+    private var byteFormatter: ByteCountFormatter {
+        let f = ByteCountFormatter(); f.countStyle = .file; return f
+    }
 
     private func workspaceTags(for file: FileNode) -> [String] {
         guard let ws = file.workspace else { return [] }
@@ -122,11 +145,12 @@ struct FileTableView: View {
 
     private func promptNewTag(for file: FileNode) {
         let alert = NSAlert()
-        alert.messageText = "New tag for \(file.name)"
+        alert.messageText = String(format: NSLocalizedString("dialog.newTag.format",
+            value: "New tag for %@", comment: ""), file.name)
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
         alert.accessoryView = field
-        alert.addButton(withTitle: "Add")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: NSLocalizedString("Add", value: "Add", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Cancel", value: "Cancel", comment: ""))
         if alert.runModal() == .alertFirstButtonReturn {
             let name = field.stringValue.trimmingCharacters(in: .whitespaces)
             if !name.isEmpty { addTag(name, to: file) }

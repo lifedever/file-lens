@@ -44,7 +44,7 @@ struct ContentView: View {
                     Group {
                         switch viewMode {
                         case .grid:    FileGridView(files: files, selectedFile: $selectedFile)
-                        case .list:    FileTableView(files: files)
+                        case .list:    FileTableView(files: files, selectedFile: $selectedFile)
                         case .gallery: GalleryView(files: files)
                         }
                     }
@@ -141,6 +141,9 @@ struct ContentView: View {
                 if let ws { await coordinator?.activate(workspace: ws) }
                 else      { await coordinator?.deactivate() }
             }
+        }
+        .onChange(of: selectedFile) { _, newFile in
+            if newFile != nil { showInspector = true }
         }
     }
 

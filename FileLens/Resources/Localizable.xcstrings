@@ -198,6 +198,132 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浏览器还在下载中的临时文件 (.crdownload 等)" } }
       }
     },
+    "kind.image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Image" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片" } }
+      }
+    },
+    "kind.movie" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Movie" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "视频" } }
+      }
+    },
+    "kind.audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频" } }
+      }
+    },
+    "kind.archive" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Archive" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "压缩包" } }
+      }
+    },
+    "kind.code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Code" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "代码" } }
+      }
+    },
+    "kind.document" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Document" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文档" } }
+      }
+    },
+    "kind.text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Text" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文本" } }
+      }
+    },
+    "kind.other" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Other" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他" } }
+      }
+    },
+    "bucket.today" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Today" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "今天" } }
+      }
+    },
+    "bucket.yesterday" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Yesterday" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "昨天" } }
+      }
+    },
+    "bucket.last3" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Past 3 Days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "过去 3 天" } }
+      }
+    },
+    "bucket.last7" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Past 7 Days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "过去 7 天" } }
+      }
+    },
+    "bucket.last15" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Past 15 Days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "过去 15 天" } }
+      }
+    },
+    "bucket.lastMonth" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Past Month" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "过去 1 个月" } }
+      }
+    },
+    "bucket.last3Months" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Past 3 Months" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "过去 3 个月" } }
+      }
+    },
+    "bucket.last6Months" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Past 6 Months" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "过去 6 个月" } }
+      }
+    },
+    "bucket.lastYear" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Past Year" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "过去 1 年" } }
+      }
+    },
+    "bucket.older" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Earlier" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更早" } }
+      }
+    },
     "Installers" : {
       "extractionState" : "manual",
       "localizations" : {
