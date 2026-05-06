@@ -4,7 +4,7 @@ import AppKit
 
 struct FileGridView: View {
     let files: [FileNode]
-    @Binding var selectedFile: FileNode?
+    @Binding var selection: Set<UUID>
     @Environment(\.modelContext) private var modelContext
 
     private let columns = [GridItem(.adaptive(minimum: 110, maximum: 160), spacing: 12)]
@@ -13,19 +13,22 @@ struct FileGridView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(files) { file in
-                    FileGridItem(file: file, isSelected: file.id == selectedFile?.id)
+                    FileGridItem(file: file, isSelected: selection.contains(file.id))
                         .simultaneousGesture(
                             TapGesture(count: 2).onEnded { FileActions.open(file) }
                         )
                         .simultaneousGesture(
-                            TapGesture(count: 1).onEnded { selectedFile = file }
+                            TapGesture(count: 1).onEnded { handleTap(file) }
                         )
                         .onDrag {
                             let url = FileActions.url(for: file).map { $0 as NSURL } ?? NSURL()
                             return NSItemProvider(object: url)
                         }
                         .contextMenu {
-                            fileContextMenu(file)
+                            FileContextMenu(
+                                files: filesForContextMenu(file: file),
+                                modelContext: modelContext
+                            )
                         }
                 }
             }
@@ -33,72 +36,25 @@ struct FileGridView: View {
         }
     }
 
-    @ViewBuilder
-    private func fileContextMenu(_ file: FileNode) -> some View {
-        Button("Reveal in Finder") { FileActions.reveal(file) }
-        Button("Open With Default App") { FileActions.open(file) }
-        Button("Quick Look") {
-            if let url = FileActions.url(for: file) {
-                QuickLookCoordinator.shared.show(urls: [url])
-            }
-        }
-        .keyboardShortcut(" ", modifiers: [])
-        Divider()
-        Menu("Add Tag") {
-            let existing = workspaceTags(for: file)
-            ForEach(existing, id: \.self) { tag in
-                Button(TagDisplay.localizedName(tag)) { addTag(tag, to: file) }
-            }
-            if !existing.isEmpty { Divider() }
-            Button("New Tag…") { promptNewTag(for: file) }
-        }
-        if file.tags.contains(where: { $0.source == "manual" }) {
-            Menu("Remove Tag") {
-                ForEach(file.tags.filter { $0.source == "manual" }) { tag in
-                    Button(TagDisplay.localizedName(tag.name)) { removeManualTag(tag) }
-                }
-            }
-        }
-        Divider()
-        Button("Move to Trash", role: .destructive) {
-            FileActions.moveToTrash(file, modelContext: modelContext)
+    /// Cmd-click toggles, plain click replaces selection. Shift-range selection
+    /// would need an anchor — skipped for v1, matches Finder gallery view.
+    private func handleTap(_ file: FileNode) {
+        let cmdHeld = NSEvent.modifierFlags.contains(.command)
+        if cmdHeld {
+            if selection.contains(file.id) { selection.remove(file.id) }
+            else { selection.insert(file.id) }
+        } else {
+            selection = [file.id]
         }
     }
 
-    private func workspaceTags(for file: FileNode) -> [String] {
-        guard let ws = file.workspace else { return [] }
-        var s = Set<String>()
-        for f in ws.files where f.isPresent {
-            for t in f.tags { s.insert(t.name) }
+    /// Right-click on a selected item targets the whole selection; right-click
+    /// on a non-selected item targets just that one (matches Finder).
+    private func filesForContextMenu(file: FileNode) -> [FileNode] {
+        if selection.contains(file.id) {
+            return files.filter { selection.contains($0.id) }
         }
-        return s.sorted()
-    }
-
-    private func addTag(_ name: String, to file: FileNode) {
-        let tag = FileTag(name: name, source: "manual", ruleID: nil)
-        tag.file = file
-        modelContext.insert(tag)
-        file.tags.append(tag)
-        try? modelContext.save()
-    }
-
-    private func removeManualTag(_ tag: FileTag) {
-        modelContext.delete(tag)
-        try? modelContext.save()
-    }
-
-    private func promptNewTag(for file: FileNode) {
-        let alert = NSAlert()
-        alert.messageText = String(format: NSLocalizedString("dialog.newTag.format",
-            value: "New tag for %@", comment: ""), file.name)
-        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
-        alert.accessoryView = field
-        alert.addButton(withTitle: NSLocalizedString("Add", value: "Add", comment: ""))
-        alert.addButton(withTitle: NSLocalizedString("Cancel", value: "Cancel", comment: ""))
-        if alert.runModal() == .alertFirstButtonReturn {
-            let name = field.stringValue.trimmingCharacters(in: .whitespaces)
-            if !name.isEmpty { addTag(name, to: file) }
-        }
+        return [file]
     }
 }
 

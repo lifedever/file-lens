@@ -44,6 +44,9 @@ struct FileLensCommands: Commands {
     @FocusedValue(\.newRuleAction) private var newRule
     @FocusedValue(\.checkUpdateAction) private var checkUpdate
     @FocusedValue(\.activeWorkspaceName) private var workspaceName
+    /// Mirrored in SidebarView so the two stay in sync — UserDefaults is
+    /// the single source of truth.
+    @AppStorage("filelens.showEmptyRules") private var showEmptyRules: Bool = true
 
     var body: some Commands {
         CommandGroup(after: .newItem) {
@@ -77,11 +80,18 @@ struct FileLensCommands: Commands {
 
         CommandGroup(after: .appInfo) {
             Button {
-                checkUpdate?()
+                UpdateService.checkAndPrompt()
             } label: {
                 Text("Check for Updates…")
             }
-            .disabled(checkUpdate == nil)
+        }
+
+        // Drops a "Show Empty Rules" toggle into the View menu, alongside
+        // the system-provided "Show/Hide Sidebar" item.
+        CommandGroup(after: .sidebar) {
+            Toggle(isOn: $showEmptyRules) {
+                Text("Show Empty Rules")
+            }
         }
     }
 }

@@ -17,7 +17,9 @@ struct ContentView: View {
     @State private var selection: SidebarSelection?
     @State private var coordinator: WorkspaceCoordinator?
     @State private var viewMode: ViewMode = .list
-    @State private var selectedFile: FileNode?
+    /// Multi-selection of file IDs. We store IDs (not FileNode) so the set
+    /// stays valid across SwiftData refresh cycles.
+    @State private var selectedFileIDs: Set<UUID> = []
     @State private var showInspector: Bool = false
     @State private var pendingWorkspace: PendingWorkspace?
     @State private var editingRule: Rule?
@@ -25,13 +27,19 @@ struct ContentView: View {
     /// Set by `newRule()` and committed on Save inside the sheet. Lets us drop
     /// the draft on Cancel without leaving an orphan.
     @State private var pendingNewRule: Rule?
+    @State private var welcomeOpen: Bool = false
+    /// Tracks whether the sidebar is shown. We keep the state local so we
+    /// can collapse it automatically when there are no workspaces (the
+    /// sidebar would just be empty space + the support footer otherwise).
+    @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
+    @AppStorage("filelens.onboardingCompleted") private var onboardingCompleted: Bool = false
     @AppStorage("filelens.autoExpandInspector") private var autoExpandInspector: Bool = false
     @State private var searchText: String = ""
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
     var body: some View {
-        NavigationSplitView {
+        NavigationSplitView(columnVisibility: $columnVisibility) {
             SidebarView(
                 selection: $selection,
                 selectedWorkspace: $selectedWorkspace,
@@ -48,11 +56,12 @@ struct ContentView: View {
                 EmptyStateView(onAddFolder: addFolder)
             } else if let ws = selectedWorkspace {
                 let files = filesForCurrentSelection(workspace: ws)
+                let selectedFiles = files.filter { selectedFileIDs.contains($0.id) }
                 VStack(spacing: 0) {
                     Group {
                         switch viewMode {
-                        case .grid:    FileGridView(files: files, selectedFile: $selectedFile)
-                        case .list:    FileTableView(files: files, selectedFile: $selectedFile)
+                        case .grid:    FileGridView(files: files, selection: $selectedFileIDs)
+                        case .list:    FileTableView(files: files, selection: $selectedFileIDs)
                         case .gallery: GalleryView(files: files)
                         }
                     }
@@ -60,9 +69,15 @@ struct ContentView: View {
 
                     Divider()
                     HStack {
-                        Text("\(files.count) items")
-                        Text("·")
-                        Text(byteFormatter.string(fromByteCount: files.reduce(0) { $0 + $1.size }))
+                        if selectedFiles.count > 1 {
+                            Text("\(selectedFiles.count) of \(files.count) selected")
+                            Text("·")
+                            Text(byteFormatter.string(fromByteCount: selectedFiles.reduce(0) { $0 + $1.size }))
+                        } else {
+                            Text("\(files.count) items")
+                            Text("·")
+                            Text(byteFormatter.string(fromByteCount: files.reduce(0) { $0 + $1.size }))
+                        }
                     }
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -71,7 +86,7 @@ struct ContentView: View {
                 }
                 .searchable(text: $searchText, placement: .toolbar)
                 .inspector(isPresented: $showInspector) {
-                    InspectorView(file: selectedFile)
+                    InspectorView(file: selectedFiles.first)
                         .inspectorColumnWidth(min: 220, ideal: 280, max: 400)
                 }
                 .toolbar {
@@ -93,9 +108,15 @@ struct ContentView: View {
                     }
                 }
             } else {
-                Text("Select a workspace from the sidebar")
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Empty hero — there are workspaces, just nothing picked.
+                // ContentUnavailableView gives us the native centered look
+                // with the right hierarchy: icon, title, supporting text.
+                ContentUnavailableView {
+                    Label("empty.workspace.title", systemImage: "sidebar.left")
+                } description: {
+                    Text("empty.workspace.subtitle")
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .frame(minWidth: 900, minHeight: 600)
@@ -111,6 +132,33 @@ struct ContentView: View {
                     pendingWorkspace = nil
                 }
             )
+        }
+        .sheet(isPresented: $welcomeOpen) {
+            WelcomeSheet(onDismiss: {
+                onboardingCompleted = true
+                welcomeOpen = false
+            })
+        }
+        .task {
+            // First-launch onboarding. The flag persists across launches so
+            // returning users don't see the sheet again unless they invoke
+            // it from Settings.
+            if !onboardingCompleted {
+                welcomeOpen = true
+            }
+            // Collapse the sidebar when there are no workspaces — empty
+            // sidebar plus the empty hero in detail looked twice as empty.
+            if workspaces.isEmpty {
+                columnVisibility = .detailOnly
+            }
+        }
+        .onChange(of: workspaces.isEmpty) { _, isEmpty in
+            // First workspace added: restore the standard split view. If
+            // every workspace is removed, hide the sidebar again.
+            columnVisibility = isEmpty ? .detailOnly : .all
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .showWelcome)) { _ in
+            welcomeOpen = true
         }
         .sheet(item: $editingRule) { rule in
             RuleEditorView(
@@ -128,6 +176,9 @@ struct ContentView: View {
                     try? modelContext.save()
                     editingRule = nil
                     reapplyRulesIfNeeded()
+                    ToastCenter.shared.success(
+                        NSLocalizedString("Rule saved", value: "Rule saved", comment: "")
+                    )
                 },
                 onCancel: {
                     // Drop the draft entirely; nothing was inserted.
@@ -153,10 +204,59 @@ struct ContentView: View {
                 Button("Quick Look") { quickLookSelected() }
                     .keyboardShortcut(.space, modifiers: [])
                     .hidden()
-                Button("Open") {
-                    if let f = selectedFile { FileActions.open(f) }
+                Button("Open") { FileActions.open(currentSelection) }
+                    .keyboardShortcut("o", modifiers: .command)
+                    .disabled(currentSelection.isEmpty)
+                    .hidden()
+                Button("Open (alt)") { FileActions.open(currentSelection) }
+                    .keyboardShortcut(.downArrow, modifiers: .command)
+                    .disabled(currentSelection.isEmpty)
+                    .hidden()
+                Button("Reveal in Finder") { FileActions.reveal(currentSelection) }
+                    .keyboardShortcut("r", modifiers: .command)
+                    .disabled(currentSelection.isEmpty)
+                    .hidden()
+                Button("Move to Trash") {
+                    FileActions.moveToTrash(currentSelection, modelContext: modelContext)
                 }
-                .keyboardShortcut(.return, modifiers: .command)
+                .keyboardShortcut(.delete, modifiers: .command)
+                .disabled(currentSelection.isEmpty)
+                .hidden()
+                Button("Copy Path") { FileActions.copyPath(currentSelection) }
+                    .keyboardShortcut("c", modifiers: [.command, .option])
+                    .disabled(currentSelection.isEmpty)
+                    .hidden()
+                Button("Copy to…") { FileActions.copyTo(currentSelection) }
+                    .keyboardShortcut("c", modifiers: [.command, .shift])
+                    .disabled(currentSelection.isEmpty)
+                    .hidden()
+                Button("Move to…") {
+                    FileActions.moveTo(currentSelection, modelContext: modelContext)
+                }
+                .keyboardShortcut("m", modifiers: [.command, .shift])
+                .disabled(currentSelection.isEmpty)
+                .hidden()
+                Button("Share…") { FileActions.share(currentSelection, from: nil) }
+                    .keyboardShortcut("s", modifiers: [.command, .shift])
+                    .disabled(currentSelection.isEmpty)
+                    .hidden()
+                // Plain Return = rename, single-file only (matches Finder).
+                // SwiftUI's keyboardShortcut respects first-responder focus,
+                // so text fields like the search bar still consume Return
+                // before it reaches this button.
+                Button("Rename…") {
+                    if let f = currentSelection.first {
+                        FileActions.rename(f, modelContext: modelContext)
+                    }
+                }
+                .keyboardShortcut(.return, modifiers: [])
+                .disabled(currentSelection.count != 1)
+                .hidden()
+                Button("Show Actions") {
+                    ActionMenu.popUp(for: currentSelection, modelContext: modelContext)
+                }
+                .keyboardShortcut("k", modifiers: .command)
+                .disabled(currentSelection.isEmpty)
                 .hidden()
             }
         )
@@ -171,8 +271,8 @@ struct ContentView: View {
                 else      { await coordinator?.deactivate() }
             }
         }
-        .onChange(of: selectedFile) { _, newFile in
-            if autoExpandInspector, newFile != nil {
+        .onChange(of: selectedFileIDs) { _, ids in
+            if autoExpandInspector, !ids.isEmpty {
                 showInspector = true
             }
         }
@@ -190,8 +290,6 @@ struct ContentView: View {
             base = present.filter { $0.tags.contains(where: { $0.name == name }) }
         case .uncategorized:
             base = present.filter { $0.tags.isEmpty }
-        case .trashed:
-            base = ws.files.filter { !$0.isPresent }
         default:
             base = present
         }
@@ -259,9 +357,18 @@ struct ContentView: View {
         }
     }
 
+    /// Files matching the current multi-selection, in the same order they
+    /// appear on screen.
+    private var currentSelection: [FileNode] {
+        guard let ws = selectedWorkspace else { return [] }
+        return filesForCurrentSelection(workspace: ws)
+            .filter { selectedFileIDs.contains($0.id) }
+    }
+
     private func quickLookSelected() {
-        guard let f = selectedFile, let url = FileActions.url(for: f) else { return }
-        QuickLookCoordinator.shared.show(urls: [url])
+        let urls = currentSelection.compactMap { FileActions.url(for: $0) }
+        guard !urls.isEmpty else { return }
+        QuickLookCoordinator.shared.show(urls: urls)
     }
 
     /// Window title reflects the current workspace + sidebar selection,
@@ -273,9 +380,7 @@ struct ContentView: View {
         case .tag(_, let name):
             return "\(ws.name) — \(TagDisplay.localizedName(name))"
         case .uncategorized:
-            return "\(ws.name) — \(NSLocalizedString("Uncategorized", value: "Uncategorized", comment: ""))"
-        case .trashed:
-            return "\(ws.name) — \(NSLocalizedString("Trashed", value: "Trashed", comment: ""))"
+            return "\(ws.name) — \(NSLocalizedString("Unfiled", value: "Unfiled", comment: ""))"
         case .workspace, .none:
             return ws.name
         }

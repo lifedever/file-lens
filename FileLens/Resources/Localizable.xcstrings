@@ -13,14 +13,14 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Pick any folder (Downloads, Desktop…) and FileLens will tag the files inside by type — installers, screenshots, large files, and more. Your files stay where they are." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选一个你常用的文件夹（比如 Downloads、Desktop），FileLens 会自动给里面的文件打上标签——安装包、截图、大文件……\n文件物理位置不会改变，FileLens 只是按标签把它们重新组织展示。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选一个你常用的文件夹（比如 Downloads、Desktop），FileLens 会按规则自动归类——安装包、截图、大文件……\n文件物理位置不会改变，FileLens 只是按规则重新组织它们。" } }
       }
     },
     "empty.feat1.title" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto-tag" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动打标签" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动归类" } }
       }
     },
     "empty.feat1.body" : {
@@ -55,7 +55,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "New downloads appear automatically with the right tags." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新下载的文件自动出现，自动打标签。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新下载的文件自动出现，按规则自动归类。" } }
       }
     },
     "empty.cta" : {
@@ -75,22 +75,22 @@
     "picker.title.format" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Set up tags for “%@”" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为「%@」配置标签" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Set up rules for “%@”" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为「%@」配置规则" } }
       }
     },
     "picker.subtitle" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "FileLens will scan this folder and tag each file by these rules. You can change anything later in the sidebar." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 会扫描这个文件夹，按下面的规则给每个文件打标签。所有规则之后都能在侧栏修改 / 关掉。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 会扫描这个文件夹，按下面的规则自动给每个文件归类。所有规则之后都能在侧栏修改 / 关闭。" } }
       }
     },
     "picker.recommendation" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not sure? Just click “Use these tags”. The defaults work for most folders, and you can always tweak them later." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不知道选什么？直接点【使用这些标签】就行。默认配置对大多数场景够用，之后随时能改。" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not sure? Just click “Use these rules”. The defaults work for most folders, and you can always tweak them later." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不知道选什么？直接点【使用这些规则】就行。默认配置对大多数场景够用，之后随时能改。" } }
       }
     },
     "picker.selected.format" : {
@@ -103,8 +103,8 @@
     "picker.confirm" : {
       "extractionState" : "manual",
       "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use these tags" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用这些标签" } }
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use these rules" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用这些规则" } }
       }
     },
     "rule.Installers.desc" : {
@@ -468,14 +468,14 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Files keep any other tags they have. The rule will be removed from this workspace." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件本身的其他标签会保留，但这条规则会从当前工作区移除。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他规则不受影响，这条规则会从当前工作区移除。" } }
       }
     },
     "delete.confirm.message.format" : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Files keep any other tags. The “%@” rule will be removed from this workspace." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件的其他标签保留，「%@」规则会从当前工作区移除。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "其他规则不受影响，「%@」规则会从当前工作区移除。" } }
       }
     },
     "General" : {
@@ -636,7 +636,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "A non-destructive view layer for any folder.\nFiles stay where they are." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为任何文件夹加一层非破坏性的标签视图。\n文件本身从不被移动。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为任何文件夹加一层非破坏性的规则视图。\n文件本身从不被移动。" } }
       }
     },
     "Disable" : {
@@ -783,7 +783,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "FileLens watches folders you choose and groups files by tags.\nFiles never move from their original location." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 监听你选定的文件夹，按标签分组展示。\n文件始终留在原处，不会被移动。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 监听你选定的文件夹，按规则分组展示。\n文件始终留在原处，不会被移动。" } }
       }
     },
     "Workspaces" : {
@@ -797,7 +797,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Tags" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "标签" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "规则" } }
       }
     },
     "System" : {
@@ -902,14 +902,14 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Choose default tags" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择默认标签" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择默认规则" } }
       }
     },
     "FileLens groups files by these rules. You can turn any of them off later." : {
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "FileLens groups files by these rules. You can turn any of them off later." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 会根据这些规则给文件打标签。任何一项之后都可以关闭。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 会根据这些规则给文件归类。任何一项之后都可以关闭。" } }
       }
     },
     "Cancel" : {
@@ -1092,6 +1092,377 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Extension" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扩展名" } }
+      }
+    },
+    "Copy to…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy to…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制到…" } }
+      }
+    },
+    "Move to…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move to…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移动到…" } }
+      }
+    },
+    "Copy Path" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy Path" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制路径" } }
+      }
+    },
+    "Rename…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rename…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重命名…" } }
+      }
+    },
+    "Rename" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rename" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "重命名" } }
+      }
+    },
+    "Share…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Share…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "共享…" } }
+      }
+    },
+    "Copy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copy" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "复制" } }
+      }
+    },
+    "Move" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Move" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "移动" } }
+      }
+    },
+    "dialog.rename.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter a new name for “%@”." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为「%@」输入一个新名字。" } }
+      }
+    },
+    "%lld of %lld selected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld of %lld selected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选 %lld / %lld" } }
+      }
+    },
+    "Color" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Color" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "颜色" } }
+      }
+    },
+    "palette.selection.count.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%lld files selected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选 %lld 个文件" } }
+      }
+    },
+    "Support FileLens" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Support FileLens" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "支持作者" } }
+      }
+    },
+    "Trash" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Trash" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "废纸篓" } }
+      }
+    },
+    "Unfiled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unfiled" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未归档" } }
+      }
+    },
+    "Show Empty Rules" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Empty Rules" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示空规则" } }
+      }
+    },
+    "Copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copied" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制" } }
+      }
+    },
+    "Copied %lld files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copied %lld files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制 %lld 个文件" } }
+      }
+    },
+    "Moved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移动" } }
+      }
+    },
+    "Moved %lld files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved %lld files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移动 %lld 个文件" } }
+      }
+    },
+    "Moved to Trash" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved to Trash" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移到废纸篓" } }
+      }
+    },
+    "Moved to Trash %lld files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved %lld to Trash" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移到废纸篓 %lld 个文件" } }
+      }
+    },
+    "Path copied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Path copied" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "路径已复制" } }
+      }
+    },
+    "Renamed" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Renamed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已重命名" } }
+      }
+    },
+    "Rule saved" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rule saved" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "规则已保存" } }
+      }
+    },
+    "empty.workspace.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select a workspace" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择一个工作区" } }
+      }
+    },
+    "empty.workspace.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pick a folder from the sidebar to see your tagged view." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "从侧栏选择一个文件夹，开始查看你的规则视图。" } }
+      }
+    },
+    "Shortcuts" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Shortcuts" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "快捷键" } }
+      }
+    },
+    "shortcut.openWindow.label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open FileLens window" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开 FileLens 主窗口" } }
+      }
+    },
+    "welcome.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Welcome to FileLens" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "欢迎使用 FileLens" } }
+      }
+    },
+    "welcome.tagline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tag and organize any folder — without ever moving the original files." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为任意文件夹按规则自动归类，永远不动你的原始文件。" } }
+      }
+    },
+    "welcome.feature.nondestructive.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Non-destructive view" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "非破坏式视图" } }
+      }
+    },
+    "welcome.feature.nondestructive.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Your files stay exactly where they are. Tags are only a view layer over the folder." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件位置不变，规则只是文件夹之上的一层视图。" } }
+      }
+    },
+    "welcome.feature.rules.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Smart auto-tagging" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "智能自动归类" } }
+      }
+    },
+    "welcome.feature.rules.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Match files by extension, name, size, or date. Tags update live as files arrive." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "按扩展名、名称、大小、日期定义规则，文件到来时实时归类。" } }
+      }
+    },
+    "welcome.feature.workspaces.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Watch any folder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "监听任意文件夹" } }
+      }
+    },
+    "welcome.feature.workspaces.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Downloads, Documents, or any folder you choose. Each gets its own rules." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "可以添加 Downloads、Documents 或任何你选择的文件夹，每个都有独立的规则。" } }
+      }
+    },
+    "welcome.feature.shortcuts.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Native macOS feel" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原生 macOS 体验" } }
+      }
+    },
+    "welcome.feature.shortcuts.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Look, multi-select, drag-reorder, ⌘K menu, and a global hotkey." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "支持快速查看、多选、拖拽排序、⌘K 菜单和全局快捷键。" } }
+      }
+    },
+    "welcome.getStarted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Get Started" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "开始使用" } }
+      }
+    },
+    "welcome.replay.label" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Welcome screen" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "欢迎页" } }
+      }
+    },
+    "welcome.replay.button" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Show Welcome…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "显示欢迎页…" } }
+      }
+    },
+    "picker.selectAll" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Select All" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全选" } }
+      }
+    },
+    "picker.deselectAll" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Deselect All" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "取消全选" } }
+      }
+    },
+    "update.uptodate.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "You're up to date" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已是最新版本" } }
+      }
+    },
+    "OK" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "OK" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "好" } }
+      }
+    },
+    "settings.support" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Support" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "支持" } }
+      }
+    },
+    "support.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Support FileLens" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "支持 FileLens" } }
+      }
+    },
+    "support.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "FileLens is free and open source. If it helps you, consider supporting the project." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 是免费开源的。如果对你有帮助，欢迎支持这个项目。" } }
+      }
+    },
+    "support.coffee" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Buy me a coffee" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "请我喝杯咖啡" } }
+      }
+    },
+    "support.star" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Star on GitHub" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "GitHub 点个 Star" } }
+      }
+    },
+    "support.feedback" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Submit Feedback" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "提交反馈" } }
+      }
+    },
+    "about.website" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Website" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "官网" } }
       }
     }
   }

@@ -6,7 +6,6 @@ enum SidebarSelection: Hashable {
     case workspace(UUID)
     case tag(workspaceID: UUID, name: String)
     case uncategorized(workspaceID: UUID)
-    case trashed(workspaceID: UUID)
 }
 
 private let kIconSize: CGFloat = 16
@@ -17,21 +16,52 @@ struct SidebarView: View {
     @Binding var selectedWorkspace: Workspace?
     let onEditRule: (Rule) -> Void
     let onDeleteRule: (Rule) -> Void
+    @Environment(\.modelContext) private var modelContext
 
     @State private var collapsed: Set<UUID> = []
     @State private var ruleToDelete: Rule?
+    /// User-visible count of items in the system Trash. Refreshed every
+    /// `kTrashCountRefreshInterval` seconds — cheap directory listing,
+    /// nothing recursive, hidden files skipped.
+    @State private var trashCount: Int = 0
+    private static let kTrashCountRefreshInterval: TimeInterval = 15
+    /// Persisted via UserDefaults so the toggle in the View menu stays
+    /// consistent across launches and windows.
+    @AppStorage("filelens.showEmptyRules") private var showEmptyRules: Bool = true
+
+    private static let sponsorURL = URL(string: "https://www.lifedever.com")!
 
     var body: some View {
+        VStack(spacing: 0) {
+            sidebarList
+            Divider()
+            supportFooter
+        }
+        .task {
+            // Refresh the Trash count on appear, then every interval. Cheap
+            // (single non-recursive directory listing with hidden files
+            // skipped) — the loop ends when this view leaves the hierarchy.
+            while !Task.isCancelled {
+                await refreshTrashCount()
+                try? await Task.sleep(for: .seconds(Self.kTrashCountRefreshInterval))
+            }
+        }
+    }
+
+    private var sidebarList: some View {
         List(selection: $selection) {
             ForEach(workspaces) { ws in
                 DisclosureGroup(isExpanded: expansionBinding(for: ws.id)) {
                     // Children render indented automatically by DisclosureGroup.
 
-                    // Tag rows — no leading icon (they'd all be the same)
-                    ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
+                    // Tag rows — small colored dot (rule.color) gives each tag a
+                    // visual identity and aligns the leading edge with system rows.
+                    // Drag-reorder rewrites priorities so order persists.
+                    ForEach(visibleRules(in: ws)) { rule in
                         tagRow(
                             text: TagDisplay.localizedName(rule.name),
-                            count: filesCount(for: ws, tag: rule.name)
+                            count: filesCount(for: ws, tag: rule.name),
+                            color: Color(hexString: rule.color)
                         )
                         .opacity(rule.enabled ? 1.0 : 0.5)
                         .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
@@ -46,25 +76,9 @@ struct SidebarView: View {
                             }
                         }
                     }
-
-                    // Visual breathing room before System rows.
-                    // (New Rule lives in the macOS File menu now: ⌘N)
-                    Color.clear.frame(height: 6).listRowSeparator(.hidden)
-
-                    // System rows
-                    rowLabel(
-                        text: NSLocalizedString("Uncategorized", value: "Uncategorized", comment: ""),
-                        count: uncategorizedCount(for: ws),
-                        icon: AnyView(symbolIcon("questionmark.circle").foregroundStyle(.secondary))
-                    )
-                    .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
-
-                    rowLabel(
-                        text: NSLocalizedString("Trashed", value: "Trashed", comment: ""),
-                        count: trashedCount(for: ws),
-                        icon: AnyView(symbolIcon("trash").foregroundStyle(.secondary))
-                    )
-                    .tag(SidebarSelection.trashed(workspaceID: ws.id))
+                    .onMove { source, destination in
+                        reorderRules(in: ws, fromOffsets: source, toOffset: destination)
+                    }
                 } label: {
                     rowLabel(
                         text: ws.name,
@@ -76,6 +90,37 @@ struct SidebarView: View {
                 .tag(SidebarSelection.workspace(ws.id))
             }
 
+            // Pinned global rows. They sit at the bottom of the list,
+            // independent of any single workspace's expansion state.
+            // - Unfiled is scoped to the currently-selected workspace; with
+            //   no selection or with zero unfiled files it doesn't add value,
+            //   so we hide it entirely.
+            // - Trash is a system action and shows unconditionally.
+            Section {
+                if let ws = selectedWorkspace, uncategorizedCount(for: ws) > 0 {
+                    rowLabel(
+                        text: NSLocalizedString("Unfiled", value: "Unfiled", comment: ""),
+                        count: uncategorizedCount(for: ws),
+                        icon: AnyView(symbolIcon("questionmark.circle").foregroundStyle(.secondary))
+                    )
+                    .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
+                }
+
+                HStack(spacing: 6) {
+                    iconSlot { symbolIcon("trash").foregroundStyle(.secondary) }
+                    Text(NSLocalizedString("Trash", value: "Trash", comment: ""))
+                    Spacer(minLength: 4)
+                    if trashCount > 0 {
+                        CountBadge(count: trashCount)
+                    }
+                    Image(systemName: "arrow.up.right")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+                .selectionDisabled()
+                .onTapGesture { openSystemTrash() }
+            }
         }
         .listStyle(.sidebar)
         .onChange(of: selection) { _, sel in
@@ -83,8 +128,7 @@ struct SidebarView: View {
             case .workspace(let id):
                 if let ws = workspaces.first(where: { $0.id == id }) { selectedWorkspace = ws }
             case .tag(let wsID, _),
-                 .uncategorized(let wsID),
-                 .trashed(let wsID):
+                 .uncategorized(let wsID):
                 if let ws = workspaces.first(where: { $0.id == wsID }),
                    ws.id != selectedWorkspace?.id {
                     selectedWorkspace = ws
@@ -118,31 +162,123 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: Row builders
+    // MARK: Support footer
 
-    @ViewBuilder
-    private func rowLabel(text: String, count: Int, icon: AnyView, bold: Bool = false) -> some View {
-        Label {
-            HStack(spacing: 6) {
-                if bold {
-                    Text(verbatim: text).fontWeight(.semibold)
-                } else {
-                    Text(verbatim: text)
-                }
-                Spacer(minLength: 4)
-                if count > 0 {
-                    CountBadge(count: count)
-                }
+    private var supportFooter: some View {
+        Button {
+            NSWorkspace.shared.open(Self.sponsorURL)
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "heart.fill")
+                    .foregroundStyle(.pink)
+                Text("Support FileLens")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
-        } icon: {
-            icon
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())  // entire row, not just the text/icon
+        }
+        .buttonStyle(.plain)
+        .help("Support FileLens")
+        .pointingHandCursor()
+    }
+
+    // MARK: Helpers
+
+    private func visibleRules(in ws: Workspace) -> [Rule] {
+        let sorted = ws.rules.sorted(by: { $0.priority < $1.priority })
+        if showEmptyRules { return sorted }
+        return sorted.filter { filesCount(for: ws, tag: $0.name) > 0 }
+    }
+
+    private func openSystemTrash() {
+        if let trash = FileManager.default.urls(for: .trashDirectory, in: .userDomainMask).first {
+            NSWorkspace.shared.open(trash)
         }
     }
 
-    /// Tag rows have no icon — they'd all be the same tag glyph anyway.
+    /// Counts user-visible items in the system Trash (no recursion, hidden
+    /// files like .DS_Store skipped). Cheap enough to call every 15s.
+    private func refreshTrashCount() async {
+        let count = await Task.detached(priority: .utility) { () -> Int in
+            guard let trash = FileManager.default.urls(for: .trashDirectory, in: .userDomainMask).first,
+                  let contents = try? FileManager.default.contentsOfDirectory(
+                    at: trash,
+                    includingPropertiesForKeys: nil,
+                    options: [.skipsHiddenFiles])
+            else { return 0 }
+            return contents.count
+        }.value
+        await MainActor.run { trashCount = count }
+    }
+
+    // MARK: Reorder
+
+    private func reorderRules(in ws: Workspace, fromOffsets source: IndexSet, toOffset destination: Int) {
+        // ForEach 渲染的是 visibleRules(in:)（可能被 Show Empty Rules 过滤过）
+        // 所以 source / destination 是 *可见列表* 的索引。之前直接对完整
+        // ws.rules.sorted 做 move，索引就对不上了 —— 这就是用户看到的
+        // "顺序变了但没按拖拽保存" 的根因。
+        var visible = visibleRules(in: ws)
+        visible.move(fromOffsets: source, toOffset: destination)
+
+        // 隐藏的规则（不在 visible 里的）按原有 priority 顺序保留在末尾，
+        // 不会因为这次拖拽被打乱相对位置。
+        let visibleIDs = Set(visible.map(\.id))
+        let hidden = ws.rules
+            .filter { !visibleIDs.contains($0.id) }
+            .sorted(by: { $0.priority < $1.priority })
+
+        // 步长 10 重新编号，给后续插入留余量，避免每次拖拽都要 re-renumber。
+        for (idx, rule) in (visible + hidden).enumerated() {
+            rule.priority = (idx + 1) * 10
+        }
+        try? modelContext.save()
+    }
+
+    // MARK: Row builders
+
+    /// All sidebar rows share this layout: a fixed kIconSize leading slot,
+    /// 6pt gap, then the text, then a trailing badge. Using an explicit HStack
+    /// (rather than SwiftUI's `Label`) is the only way to guarantee identical
+    /// icon-to-text spacing across NSImage / SF Symbol / Circle icons —
+    /// `Label` adjusts spacing based on the icon's intrinsic size, which is
+    /// what was making the dot rows look slightly off-grid.
     @ViewBuilder
-    private func tagRow(text: String, count: Int) -> some View {
+    private func rowLabel(
+        text: String,
+        count: Int,
+        icon: AnyView,
+        bold: Bool = false,
+        showBadgeAlways: Bool = false
+    ) -> some View {
         HStack(spacing: 6) {
+            iconSlot { icon }
+            if bold {
+                Text(verbatim: text).fontWeight(.semibold)
+            } else {
+                Text(verbatim: text)
+            }
+            Spacer(minLength: 4)
+            if count > 0 || showBadgeAlways {
+                CountBadge(count: count)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func tagRow(text: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 6) {
+            iconSlot {
+                Circle()
+                    .fill(color)
+                    .overlay(
+                        Circle().stroke(Color.primary.opacity(0.08), lineWidth: 0.5)
+                    )
+                    .frame(width: 10, height: 10)
+            }
             Text(verbatim: text)
             Spacer(minLength: 4)
             if count > 0 {
@@ -151,8 +287,18 @@ struct SidebarView: View {
         }
     }
 
+    /// Pads any icon to the canonical kIconSize box and centers it. This is
+    /// the alignment anchor for every sidebar row.
+    @ViewBuilder
+    private func iconSlot<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .frame(width: kIconSize, height: kIconSize)
+    }
+
     // MARK: Icons
 
+    /// Icons are sized by their containing iconSlot — no internal frame so
+    /// they don't double-pad and end up smaller than their slot.
     private func folderIcon(for ws: Workspace) -> some View {
         let img: NSImage = {
             if FileManager.default.fileExists(atPath: ws.folderPath) {
@@ -163,14 +309,13 @@ struct SidebarView: View {
         return Image(nsImage: img)
             .resizable()
             .interpolation(.high)
-            .frame(width: kIconSize, height: kIconSize)
+            .scaledToFit()
     }
 
     private func symbolIcon(_ name: String) -> some View {
         Image(systemName: name)
             .resizable()
             .scaledToFit()
-            .frame(width: kIconSize, height: kIconSize)
     }
 
     // MARK: Expansion binding
@@ -194,21 +339,18 @@ struct SidebarView: View {
     private func uncategorizedCount(for ws: Workspace) -> Int {
         ws.files.filter { $0.isPresent && $0.tags.isEmpty }.count
     }
-
-    private func trashedCount(for ws: Workspace) -> Int {
-        ws.files.filter { !$0.isPresent }.count
-    }
 }
 
-// Mail-style rounded pill count badge
+// Mail-style rounded pill count badge — kept light so it doesn't compete with
+// the row label or the system selection highlight.
 private struct CountBadge: View {
     let count: Int
     var body: some View {
         Text("\(count)")
-            .font(.caption.monospacedDigit().weight(.semibold))
+            .font(.caption2.monospacedDigit())
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 7)
+            .padding(.horizontal, 6)
             .padding(.vertical, 1)
-            .background(Capsule().fill(Color.secondary.opacity(0.18)))
+            .background(Capsule().fill(Color.secondary.opacity(0.12)))
     }
 }

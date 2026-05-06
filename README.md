@@ -14,7 +14,7 @@ Watch any folder, group files by tags — without ever moving the originals.
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![stars](https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square)
 
-[⬇ **Download Latest**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **Sponsor**](https://github.com/sponsors/lifedever)
+[⬇ **Download Latest**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **Sponsor**](https://www.lifedever.com)
 
 [中文文档](README.zh-CN.md)
 
@@ -27,6 +27,10 @@ Watch any folder, group files by tags — without ever moving the originals.
 Your `~/Downloads` accumulates hundreds of files — `.dmg`s, screenshots, PDFs, `IMG_4523.png`s — that you never sort. Existing tools either physically move them (Hazel — risky if a rule misfires) or are too weak (Finder Smart Folders).
 
 **FileLens does neither.** It tags every file by type / name / size / age inside the app, and gives you a Finder-style sidebar to slice the contents by tag — without ever touching the files themselves. The only physical action FileLens ever takes is "Move to Trash", and only when you click it.
+
+<p align="center">
+  <img src="web/screenshot-3.png" alt="FileLens screenshot" width="800">
+</p>
 
 ## Features
 
@@ -94,7 +98,7 @@ macOS 14+ · SwiftUI + AppKit · SwiftData · QuickLookThumbnailing · FSEvents
 
 If FileLens saves you time, please consider supporting development:
 
-- **GitHub Sponsors:** <https://github.com/sponsors/lifedever>
+- **Sponsor / Donate:** <https://www.lifedever.com>
 - **Alipay / WeChat Pay:** see QR codes on the project home page
 
 Or just hit the ⭐ button at the top — it really helps.

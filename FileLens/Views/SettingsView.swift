@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import KeyboardShortcuts
 
 enum AppearancePreference: String, CaseIterable, Identifiable {
     case system, light, dark
@@ -43,10 +44,27 @@ struct SettingsView: View {
         TabView {
             GeneralSettingsView()
                 .tabItem { Label("General", systemImage: "gear") }
+            ShortcutsSettingsView()
+                .tabItem { Label("Shortcuts", systemImage: "keyboard") }
+            SupportSettingsView()
+                .tabItem { Label("settings.support", systemImage: "heart") }
             AboutSettingsView()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(width: 420)
+        .frame(width: 460)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+private struct ShortcutsSettingsView: View {
+    var body: some View {
+        Form {
+            KeyboardShortcuts.Recorder(for: .openWindow) {
+                Text("shortcut.openWindow.label")
+            }
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
         .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -84,6 +102,15 @@ private struct GeneralSettingsView: View {
             }
 
             Toggle("Auto-expand inspector when selecting a file", isOn: $autoExpandInspector)
+
+            HStack {
+                Text("welcome.replay.label")
+                Spacer()
+                Button("welcome.replay.button") {
+                    NotificationCenter.default.post(name: .showWelcome, object: nil)
+                }
+                .pointingHandCursor()
+            }
         }
         .formStyle(.grouped)
         .scrollDisabled(true)
@@ -105,6 +132,98 @@ private struct GeneralSettingsView: View {
         NSApp.terminate(nil)
     }
 }
+
+// MARK: - Support
+
+private struct SupportSettingsView: View {
+    private static let websiteURL  = URL(string: "https://www.lifedever.com")!
+    private static let starURL     = URL(string: "https://github.com/lifedever/file-lens")!
+    private static let feedbackURL = URL(string: "https://github.com/lifedever/file-lens/issues")!
+
+    var body: some View {
+        VStack(spacing: 14) {
+            // Hero card
+            VStack(spacing: 12) {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 26, weight: .semibold))
+                    .foregroundStyle(.pink)
+                    .frame(width: 60, height: 60)
+                    .background(
+                        Circle().fill(Color.pink.opacity(0.14))
+                    )
+                Text("support.title")
+                    .font(.title3.bold())
+                Text("support.subtitle")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+            }
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.secondary.opacity(0.08))
+            )
+
+            // Action list
+            VStack(spacing: 0) {
+                supportRow(icon: "cup.and.saucer.fill",
+                           title: "support.coffee",
+                           url: Self.websiteURL)
+                Divider().padding(.leading, 44)
+                supportRow(icon: "star.fill",
+                           title: "support.star",
+                           url: Self.starURL)
+                Divider().padding(.leading, 44)
+                supportRow(icon: "bubble.left.fill",
+                           title: "support.feedback",
+                           url: Self.feedbackURL)
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.secondary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.secondary.opacity(0.10), lineWidth: 0.5)
+            )
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func supportRow(icon: String,
+                            title: LocalizedStringKey,
+                            url: URL) -> some View {
+        Button {
+            NSWorkspace.shared.open(url)
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .frame(width: 24)
+                Text(title)
+                    .foregroundStyle(.tint)
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption2.weight(.semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .pointingHandCursor()
+    }
+}
+
+// MARK: - About
 
 private struct AboutSettingsView: View {
     @State private var checking = false
@@ -153,6 +272,7 @@ private struct AboutSettingsView: View {
                     }
                 }
                 .disabled(checking)
+                .pointingHandCursor()
                 if let msg = checkResultMessage {
                     Text(verbatim: msg).font(.caption).foregroundStyle(.secondary)
                 }
@@ -176,13 +296,14 @@ private struct AboutSettingsView: View {
                         comment: ""), info.latestTag))
             }
 
-            HStack(spacing: 16) {
-                Link("GitHub", destination: URL(string: "https://github.com/lifedever/file-lens")!)
-                Link("Issues", destination: URL(string: "https://github.com/lifedever/file-lens/issues")!)
-                Link("Sponsor", destination: URL(string: "https://github.com/sponsors/lifedever")!)
+            // Only Check Updates (above) + Website here. Sponsor / GitHub /
+            // Feedback all live on the dedicated Support tab now.
+            Link(destination: URL(string: "https://www.lifedever.com")!) {
+                Label("about.website", systemImage: "globe")
             }
             .font(.callout)
             .padding(.top, 6)
+            .pointingHandCursor()
         }
         .padding(.horizontal, 30)
         .padding(.vertical, 24)

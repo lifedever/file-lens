@@ -27,12 +27,17 @@ enum BuiltInRules {
     }
 
     private static func rule(
-        _ name: String,
+        _ key: String,
         _ color: String,
         priority: Int,
         _ conditions: [Condition]
     ) -> Rule {
-        let r = Rule(name: name, color: color, enabled: true, priority: priority,
+        // Localize the name at creation time, so a Chinese-system user gets
+        // 图片/音频/视频… as the actual stored name. Once stored, users can
+        // freely rename like any user-defined rule — no key→display mapping
+        // is needed at render time.
+        let localized = NSLocalizedString(key, value: key, comment: "Built-in rule name")
+        let r = Rule(name: localized, color: color, enabled: true, priority: priority,
                      combinator: "any", isBuiltIn: true)
         for cnd in conditions { r.conditions.append(cnd) }
         return r
@@ -42,24 +47,36 @@ enum BuiltInRules {
         Condition(field: field, op: op, value: value)
     }
 
-    /// Human-readable example/description for a built-in rule.
-    /// Returns nil for user-created rule names.
+    /// Map from the English key to its description string-catalog key.
+    /// Kept private so the lookup forced through `descriptionKey(forBuiltInRuleNamed:)`,
+    /// which knows how to reverse the English ↔ localized name match.
+    private static let descriptionKeys: [String: String] = [
+        "Installers":   "rule.Installers.desc",
+        "Images":       "rule.Images.desc",
+        "Videos":       "rule.Videos.desc",
+        "Audio":        "rule.Audio.desc",
+        "PDF":          "rule.PDF.desc",
+        "Documents":    "rule.Documents.desc",
+        "Archives":     "rule.Archives.desc",
+        "Code":         "rule.Code.desc",
+        "Screenshots":  "rule.Screenshots.desc",
+        "Large files":  "rule.Large.desc",
+        "New arrivals": "rule.NewArrivals.desc",
+        "Stale":        "rule.Stale.desc",
+        "Downloading":  "rule.Downloading.desc",
+    ]
+
+    /// Human-readable example/description for a built-in rule. Accepts either
+    /// the English key or its localized form, so the lookup keeps working
+    /// after `BuiltInRules.all()` started returning rules with localized
+    /// names (otherwise nothing but PDF would match in zh-Hans).
     static func descriptionKey(forBuiltInRuleNamed name: String) -> String? {
-        switch name {
-        case "Installers":   return "rule.Installers.desc"
-        case "Images":       return "rule.Images.desc"
-        case "Videos":       return "rule.Videos.desc"
-        case "Audio":        return "rule.Audio.desc"
-        case "PDF":          return "rule.PDF.desc"
-        case "Documents":    return "rule.Documents.desc"
-        case "Archives":     return "rule.Archives.desc"
-        case "Code":         return "rule.Code.desc"
-        case "Screenshots":  return "rule.Screenshots.desc"
-        case "Large files":  return "rule.Large.desc"
-        case "New arrivals": return "rule.NewArrivals.desc"
-        case "Stale":        return "rule.Stale.desc"
-        case "Downloading":  return "rule.Downloading.desc"
-        default:             return nil
+        if let key = descriptionKeys[name] { return key }
+        // Reverse lookup: does the input match the localized form of any key?
+        for (englishKey, descKey) in descriptionKeys {
+            let localized = NSLocalizedString(englishKey, value: englishKey, comment: "")
+            if name == localized { return descKey }
         }
+        return nil
     }
 }

@@ -1,70 +1,79 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
+    <!-- Subtle near-white gradient gives depth without ever competing with
+         the colored tags. Pure flat white reads as "missing icon" against
+         macOS's white window backgrounds. -->
     <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#5B8EE8"/>
-      <stop offset="100%" stop-color="#1F3FA8"/>
-    </linearGradient>
-    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#EAEFF7"/>
+      <stop offset="100%" stop-color="#EDF1F7"/>
     </linearGradient>
-    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
-      <stop offset="55%" stop-color="white" stop-opacity="0"/>
+    <!-- Hairline border so the icon doesn't melt into white surfaces. -->
+    <linearGradient id="border" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="black" stop-opacity="0.06"/>
+      <stop offset="100%" stop-color="black" stop-opacity="0.10"/>
     </linearGradient>
-    <filter id="cardShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-opacity="0.28"/>
+    <filter id="midShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="22" stdDeviation="26" flood-opacity="0.35"/>
     </filter>
-    <filter id="tagShadow" x="-30%" y="-30%" width="160%" height="160%">
-      <feDropShadow dx="0" dy="8" stdDeviation="10" flood-opacity="0.25"/>
+    <filter id="sideShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-opacity="0.22"/>
     </filter>
   </defs>
 
-  <!-- Rounded background -->
+  <!-- Rounded white background + hairline border -->
   <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg)"/>
-  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#sheen)"/>
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185"
+        fill="none" stroke="url(#border)" stroke-width="2"/>
 
-  <!-- Small white file/card centered, holding a list of tagged rows.
-       Smaller than before to leave more breathing room around the icon. -->
-  <g transform="translate(490 540) rotate(-6)" filter="url(#cardShadow)">
-    <rect x="-180" y="-220" width="360" height="440" rx="44" fill="url(#card)"/>
+  <!-- Three colored tag labels fanning from the right.
+       Tag tip points right (with a small white grommet hole near the tip);
+       the body extends left so the colored band is the dominant shape. -->
 
-    <!-- Four list rows: colored leading dot + neutral pill -->
-    <g transform="translate(0 -120)">
-      <circle cx="-110" cy="0" r="14" fill="#3B82F6"/>
-      <rect x="-80" y="-9" width="190" height="18" rx="9" fill="#D7DDE5"/>
-    </g>
-    <g transform="translate(0 -50)">
-      <circle cx="-110" cy="0" r="14" fill="#10B981"/>
-      <rect x="-80" y="-9" width="150" height="18" rx="9" fill="#D7DDE5"/>
-    </g>
-    <g transform="translate(0 20)">
-      <circle cx="-110" cy="0" r="14" fill="#F59E0B"/>
-      <rect x="-80" y="-9" width="170" height="18" rx="9" fill="#D7DDE5"/>
-    </g>
-    <g transform="translate(0 90)">
-      <circle cx="-110" cy="0" r="14" fill="#A855F7"/>
-      <rect x="-80" y="-9" width="130" height="18" rx="9" fill="#D7DDE5"/>
-    </g>
-    <g transform="translate(0 160)">
-      <circle cx="-110" cy="0" r="14" fill="#EC4899"/>
-      <rect x="-80" y="-9" width="160" height="18" rx="9" fill="#D7DDE5"/>
-    </g>
+  <!-- Origins worked out from each tag's *area* centroid, not its bbox center,
+       so the cluster's optical center lands on (512, 512). The body
+       (rectangle) is leftward and the tip (triangle) is rightward; the
+       weighted centroid sits ~58px left of the path origin, which is why
+       the translates push further right than you'd expect. -->
+
+  <!-- Tag A — back, emerald, tilted up -->
+  <g transform="translate(538 388) rotate(-22)" filter="url(#sideShadow)">
+    <path d="M -210 -82
+             L 92 -82
+             L 178 0
+             L 92 82
+             L -210 82
+             A 30 30 0 0 1 -240 52
+             L -240 -52
+             A 30 30 0 0 1 -210 -82 Z"
+          fill="#10B981"/>
+    <circle cx="68" cy="0" r="20" fill="white"/>
   </g>
 
-  <!-- Bold blue tag clipping into upper-right, brand mark for tagging -->
-  <g transform="translate(710 320) rotate(35)" filter="url(#tagShadow)">
-    <path d="M -150 -64
-             L 64 -64
-             A 22 22 0 0 1 84 -52
-             L 154 0
-             L 84 52
-             A 22 22 0 0 1 64 64
-             L -150 64
-             A 28 28 0 0 1 -178 36
-             L -178 -36
-             A 28 28 0 0 1 -150 -64 Z"
-          fill="#3B82F6"/>
-    <circle cx="56" cy="0" r="14" fill="white"/>
+  <!-- Tag C — back, pink, tilted down -->
+  <g transform="translate(538 636) rotate(22)" filter="url(#sideShadow)">
+    <path d="M -210 -82
+             L 92 -82
+             L 178 0
+             L 92 82
+             L -210 82
+             A 30 30 0 0 1 -240 52
+             L -240 -52
+             A 30 30 0 0 1 -210 -82 Z"
+          fill="#EC4899"/>
+    <circle cx="68" cy="0" r="20" fill="white"/>
+  </g>
+
+  <!-- Tag B — front-most, amber, largest, slight downward tilt -->
+  <g transform="translate(578 512) rotate(-2)" filter="url(#midShadow)">
+    <path d="M -250 -100
+             L 102 -100
+             L 204 0
+             L 102 100
+             L -250 100
+             A 36 36 0 0 1 -286 64
+             L -286 -64
+             A 36 36 0 0 1 -250 -100 Z"
+          fill="#F59E0B"/>
+    <circle cx="76" cy="0" r="24" fill="white"/>
   </g>
 </svg>

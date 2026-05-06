@@ -22,7 +22,18 @@ struct FileLensApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .onAppear { applyPersistedAppearance() }
+                .onAppear {
+                    applyPersistedAppearance()
+                    GlobalShortcuts.register()
+                    // Migrate older installs: rules created before
+                    // BuiltInRules.all() localized at creation time are
+                    // stored with English keys and read awkwardly in the
+                    // editor. This rewrites them once.
+                    RuleNameMigration.runIfNeeded(container: container)
+                    // Silent update probe — only nags if there's a newer
+                    // release and we haven't checked in the last 24h.
+                    UpdateService.checkInBackgroundIfNeeded()
+                }
         }
         .modelContainer(container)
         .commands { FileLensCommands() }

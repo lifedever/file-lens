@@ -10,67 +10,96 @@ struct RuleEditorView: View {
     @State private var confirmingDelete = false
 
     private var titleKey: LocalizedStringKey {
-        if isNewRule          { return "New rule" }
-        if rule.isBuiltIn     { return "Edit built-in rule" }
-        return "Edit rule"
+        isNewRule ? "New rule" : "Edit rule"
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Title
+            header
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    metadataSection
+                    conditionsSection
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 20)
+            }
+
+            Divider()
+            footer
+        }
+        .frame(width: 580, height: 520)
+        .confirmationDialog(
+            "delete.confirm.title",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Rule", role: .destructive) { onDelete() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("delete.confirm.message")
+        }
+    }
+
+    // MARK: - Sections
+
+    private var header: some View {
+        HStack(spacing: 10) {
+            Circle()
+                .fill(Color(hexString: rule.color))
+                .frame(width: 14, height: 14)
+                .overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
             Text(titleKey)
                 .font(.title3.bold())
-                .padding(.horizontal, 24)
-                .padding(.top, 22)
-                .padding(.bottom, 16)
+        }
+        .padding(.horizontal, 24)
+        .padding(.top, 22)
+        .padding(.bottom, 16)
+    }
 
-            Divider()
-
-            // Form-style fields
-            VStack(alignment: .leading, spacing: 14) {
-                LabeledRow(label: "Name") {
-                    if rule.isBuiltIn {
-                        // Built-in rule names are i18n keys; don't let users mutate
-                        // them or the localization mapping breaks.
-                        Text(verbatim: TagDisplay.localizedName(rule.name))
-                            .foregroundStyle(.primary)
-                        Spacer()
-                    } else {
-                        TextField("Rule name", text: $rule.name)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                }
-
-                LabeledRow(label: "Match") {
-                    Picker("", selection: $rule.combinator) {
-                        Text("All conditions").tag("all")
-                        Text("Any condition").tag("any")
-                    }
-                    .labelsHidden()
-                    .frame(width: 180)
-                    Spacer()
-                    Toggle("Enabled", isOn: $rule.enabled)
-                }
+    private var metadataSection: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            LabeledRow(label: "Name") {
+                // Built-in rules are now stored with their localized name at
+                // creation time, so all rules — built-in or user-made — are
+                // freely editable here.
+                TextField("Rule name", text: $rule.name)
+                    .textFieldStyle(.roundedBorder)
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
 
-            Divider()
+            LabeledRow(label: "Color") {
+                ColorPaletteRow(selected: $rule.color)
+            }
 
-            // Conditions section
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Conditions").font(.headline)
-                    Spacer()
-                    Button {
-                        rule.conditions.append(Condition(field: "extension", op: "is", value: ""))
-                    } label: {
-                        Label("Add Condition", systemImage: "plus.circle")
-                            .labelStyle(.titleAndIcon)
-                    }
-                    .buttonStyle(.borderless)
+            LabeledRow(label: "Match") {
+                Picker("", selection: $rule.combinator) {
+                    Text("All conditions").tag("all")
+                    Text("Any condition").tag("any")
                 }
+                .labelsHidden()
+                .frame(width: 180)
+                Spacer()
+                Toggle("Enabled", isOn: $rule.enabled)
+            }
+        }
+    }
 
+    private var conditionsSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Conditions").font(.headline)
+                Spacer()
+                Button {
+                    rule.conditions.append(Condition(field: "extension", op: "is", value: ""))
+                } label: {
+                    Label("Add Condition", systemImage: "plus.circle")
+                }
+                .buttonStyle(.borderless)
+            }
+
+            VStack(spacing: 8) {
                 ForEach(rule.conditions) { cnd in
                     ConditionRow(condition: cnd, onRemove: {
                         if let i = rule.conditions.firstIndex(where: { $0.id == cnd.id }) {
@@ -79,53 +108,86 @@ struct RuleEditorView: View {
                     })
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 18)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.secondary.opacity(0.06))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.secondary.opacity(0.12), lineWidth: 0.5)
+            )
+        }
+    }
 
-            Spacer(minLength: 0)
-            Divider()
-
-            // Footer
-            HStack {
-                Button("Delete", role: .destructive) {
-                    confirmingDelete = true
-                }
-                .disabled(isNewRule)  // nothing to delete for a draft
-
-                Spacer()
-                Button("Cancel", action: onCancel)
-                    .keyboardShortcut(.cancelAction)
-                Button(isNewRule ? "Add Rule" : "Save") {
-                    onSave()
-                }
+    private var footer: some View {
+        HStack {
+            Button("Delete", role: .destructive) {
+                confirmingDelete = true
+            }
+            .disabled(isNewRule)
+            Spacer()
+            Button("Cancel", action: onCancel)
+                .keyboardShortcut(.cancelAction)
+            Button(isNewRule ? "Add Rule" : "Save", action: onSave)
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 14)
         }
-        .frame(width: 560, height: 460)
-        .confirmationDialog(
-            "delete.confirm.title",
-            isPresented: $confirmingDelete,
-            titleVisibility: .visible
-        ) {
-            Button("Delete Rule", role: .destructive) {
-                onDelete()
+        .padding(.horizontal, 24)
+        .padding(.vertical, 14)
+    }
+}
+
+// MARK: - Color row
+
+private struct ColorPaletteRow: View {
+    @Binding var selected: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(RuleColorPresets.all, id: \.self) { hex in
+                ColorSwatch(
+                    color: Color(hexString: hex),
+                    isSelected: hex.lowercased() == selected.lowercased()
+                )
+                .onTapGesture { selected = hex }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("delete.confirm.message")
+            Spacer()
         }
     }
 }
+
+private struct ColorSwatch: View {
+    let color: Color
+    let isSelected: Bool
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 18, height: 18)
+            .overlay(
+                Circle().stroke(Color.primary.opacity(0.12), lineWidth: 0.5)
+            )
+            .padding(2)
+            .overlay(
+                Circle()
+                    .stroke(isSelected ? Color.accentColor : .clear, lineWidth: 2)
+            )
+            .contentShape(Rectangle())
+    }
+}
+
+// MARK: - Helpers
 
 private struct LabeledRow<Content: View>: View {
     let label: LocalizedStringKey
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
+        // .center keeps the label vertically centered with non-text content
+        // (e.g. the color swatch row). .firstTextBaseline silently falls back
+        // to the view's bottom edge for views without text, which pushed the
+        // swatches' optical centers off the label's center.
+        HStack(alignment: .center, spacing: 12) {
             Text(label)
                 .frame(width: 64, alignment: .trailing)
                 .foregroundStyle(.secondary)

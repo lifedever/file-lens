@@ -14,7 +14,7 @@
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![stars](https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square)
 
-[⬇ **下载最新版**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **赞助**](https://github.com/sponsors/lifedever)
+[⬇ **下载最新版**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **赞助**](https://www.lifedever.com)
 
 [English](README.md)
 
@@ -27,6 +27,10 @@
 你的 `~/Downloads` 里堆了几百个 `.dmg`、截图、PDF——一直没整理。市面上的工具要么是物理搬运型（Hazel，规则一错就翻车），要么太弱（Finder 智能文件夹只能搜，不能成体系地分组）。
 
 **FileLens 不搬文件，只在 App 里给每个文件打上标签，按你想要的维度（类型 / 文件名 / 大小 / 时间）分组展示。** 原文件始终在原文件夹，不会被移动、重命名或修改。FileLens 唯一会动文件的物理操作就是"移到废纸篓"——而且只在你主动点击的时候。
+
+<p align="center">
+  <img src="web/screenshot-3.png" alt="FileLens 截图" width="800">
+</p>
 
 ## 功能特性
 
@@ -96,7 +100,7 @@ macOS 14+ · SwiftUI + AppKit · SwiftData · QuickLookThumbnailing · FSEvents
 
 如果 FileLens 帮你省了时间，欢迎请我喝杯咖啡支持继续迭代：
 
-- **GitHub Sponsors**：<https://github.com/sponsors/lifedever>
+- **赞助 / 捐赠**：<https://www.lifedever.com>
 - **支付宝 / 微信**：见仓库主页二维码
 
 或者直接给仓库点一个 ⭐ ，对独立开发者也是巨大的鼓励。
