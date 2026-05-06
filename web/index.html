@@ -54,16 +54,29 @@
         <section class="screenshots" id="screenshots">
             <div class="container">
                 <h2 class="section-title">看看它在做什么</h2>
-                <div class="screenshot-stack">
-                    <figure>
-                        <img src="screenshot-1.png" alt="FileLens 主界面：规则侧栏与文件列表">
-                    </figure>
-                    <figure>
-                        <img src="screenshot-2.png" alt="规则编辑器：支持自定义颜色与多种条件">
-                    </figure>
-                    <figure>
-                        <img src="screenshot-3.png" alt="文件操作：复制、移动、共享，原生 macOS 体验">
-                    </figure>
+                <div class="slideshow" data-autoplay="6000">
+                    <div class="slides" id="slides">
+                        <figure>
+                            <img src="screenshot-1.png" alt="FileLens 主界面：规则侧栏与文件列表">
+                        </figure>
+                        <figure>
+                            <img src="screenshot-2.png" alt="规则编辑器：支持自定义颜色与多种条件">
+                        </figure>
+                        <figure>
+                            <img src="screenshot-3.png" alt="文件操作：复制、移动、共享，原生 macOS 体验">
+                        </figure>
+                    </div>
+                    <button class="slide-nav prev" type="button" aria-label="上一张">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+                    </button>
+                    <button class="slide-nav next" type="button" aria-label="下一张">
+                        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M8.59 16.59L10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+                    </button>
+                    <div class="dots" id="dots">
+                        <button class="dot active" type="button" aria-label="第 1 张" data-index="0"></button>
+                        <button class="dot" type="button" aria-label="第 2 张" data-index="1"></button>
+                        <button class="dot" type="button" aria-label="第 3 张" data-index="2"></button>
+                    </div>
                 </div>
             </div>
         </section>
@@ -129,5 +142,66 @@
             </p>
         </div>
     </footer>
+
+    <script>
+        // Slideshow controller. Single instance because the page only has one
+        // .slideshow; would generalize to querySelectorAll if we ever need
+        // more.
+        (function () {
+            const root = document.querySelector('.slideshow');
+            if (!root) return;
+            const slides = root.querySelector('.slides');
+            const dots = Array.from(root.querySelectorAll('.dot'));
+            const total = root.querySelectorAll('.slides > *').length;
+            const interval = parseInt(root.dataset.autoplay || '0', 10);
+            let index = 0;
+            let timer = null;
+
+            function go(next) {
+                index = (next + total) % total;
+                slides.style.transform = 'translateX(' + (-index * 100) + '%)';
+                dots.forEach(function (d, i) {
+                    d.classList.toggle('active', i === index);
+                });
+            }
+
+            function start() {
+                stop();
+                if (interval > 0) timer = setInterval(function () { go(index + 1); }, interval);
+            }
+            function stop() {
+                if (timer) { clearInterval(timer); timer = null; }
+            }
+
+            root.querySelector('.prev').addEventListener('click', function () { go(index - 1); start(); });
+            root.querySelector('.next').addEventListener('click', function () { go(index + 1); start(); });
+            dots.forEach(function (d) {
+                d.addEventListener('click', function () { go(parseInt(d.dataset.index, 10)); start(); });
+            });
+
+            // Pause autoplay while the user is hovering or interacting.
+            root.addEventListener('mouseenter', stop);
+            root.addEventListener('mouseleave', start);
+            document.addEventListener('visibilitychange', function () {
+                document.hidden ? stop() : start();
+            });
+
+            // Touch / swipe support — record the first touch X, decide direction
+            // on touchend. 40px threshold avoids accidental swipes from scroll.
+            let startX = 0;
+            root.addEventListener('touchstart', function (e) {
+                startX = e.touches[0].clientX;
+                stop();
+            }, { passive: true });
+            root.addEventListener('touchend', function (e) {
+                const dx = e.changedTouches[0].clientX - startX;
+                if (dx > 40) go(index - 1);
+                else if (dx < -40) go(index + 1);
+                start();
+            });
+
+            start();
+        })();
+    </script>
 </body>
 </html>
