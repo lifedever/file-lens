@@ -41,4 +41,25 @@ enum BuiltInRules {
     private static func c(_ field: String, _ op: String, _ value: String) -> Condition {
         Condition(field: field, op: op, value: value)
     }
+
+    /// Human-readable example/description for a built-in rule.
+    /// Returns nil for user-created rule names.
+    static func descriptionKey(forBuiltInRuleNamed name: String) -> String? {
+        switch name {
+        case "Installers":   return "rule.Installers.desc"
+        case "Images":       return "rule.Images.desc"
+        case "Videos":       return "rule.Videos.desc"
+        case "Audio":        return "rule.Audio.desc"
+        case "PDF":          return "rule.PDF.desc"
+        case "Documents":    return "rule.Documents.desc"
+        case "Archives":     return "rule.Archives.desc"
+        case "Code":         return "rule.Code.desc"
+        case "Screenshots":  return "rule.Screenshots.desc"
+        case "Large files":  return "rule.Large.desc"
+        case "New arrivals": return "rule.NewArrivals.desc"
+        case "Stale":        return "rule.Stale.desc"
+        case "Downloading":  return "rule.Downloading.desc"
+        default:             return nil
+        }
+    }
 }

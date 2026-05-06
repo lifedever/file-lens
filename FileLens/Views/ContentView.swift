@@ -85,6 +85,7 @@ struct ContentView: View {
         .frame(minWidth: 900, minHeight: 600)
         .sheet(isPresented: $showFirstRunPicker) {
             FirstRunRulePicker(
+                folderName: pendingWorkspaceURL?.lastPathComponent ?? "",
                 rules: pendingRules,
                 onConfirm: commitWorkspace,
                 onCancel: {

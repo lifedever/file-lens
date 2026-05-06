@@ -2,6 +2,202 @@
   "sourceLanguage" : "en",
   "version" : "1.0",
   "strings" : {
+    "empty.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Welcome to FileLens" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "欢迎使用 FileLens" } }
+      }
+    },
+    "empty.lead" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pick any folder (Downloads, Desktop…) and FileLens will tag the files inside by type — installers, screenshots, large files, and more. Your files stay where they are." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选一个你常用的文件夹（比如 Downloads、Desktop），FileLens 会自动按文件类型给里面的文件打上标签——安装包、截图、大文件……\n文件物理位置不会改变，FileLens 只是给你一个分类后的视图。" } }
+      }
+    },
+    "empty.feat1.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto-tag" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "自动打标签" } }
+      }
+    },
+    "empty.feat1.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "13 built-in rules cover most file types out of the box." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "13 条内置规则覆盖常见文件类型，开箱即用。" } }
+      }
+    },
+    "empty.feat2.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Never moves files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不动你的文件" } }
+      }
+    },
+    "empty.feat2.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Original files stay in place. Only “Move to Trash” changes anything." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件始终在原文件夹，只有「移到废纸篓」才会动。" } }
+      }
+    },
+    "empty.feat3.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Live updates" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "实时更新" } }
+      }
+    },
+    "empty.feat3.body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New downloads appear automatically with the right tags." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新下载的文件自动出现，自动打标签。" } }
+      }
+    },
+    "empty.cta" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Pick a Folder to Watch" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选择要监听的文件夹" } }
+      }
+    },
+    "empty.hint" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Tip: ⌘O · Recommended starting point: ~/Downloads" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "小提示：⌘O 也能调出选择器 · 推荐先试试 Downloads 文件夹" } }
+      }
+    },
+    "picker.title.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Set up tags for “%@”" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为「%@」配置标签" } }
+      }
+    },
+    "picker.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "FileLens will scan this folder and tag each file by these rules. You can change anything later in the sidebar." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "FileLens 会扫描这个文件夹，按下面的规则给每个文件打标签。所有规则之后都能在侧栏修改 / 关掉。" } }
+      }
+    },
+    "picker.recommendation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Not sure? Just click “Use these tags”. The defaults work for most folders, and you can always tweak them later." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不知道选什么？直接点【使用这些标签】就行。默认配置对大多数场景够用，之后随时能改。" } }
+      }
+    },
+    "picker.selected.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "%d of %d selected" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已选 %d / %d" } }
+      }
+    },
+    "picker.confirm" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Use these tags" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "使用这些标签" } }
+      }
+    },
+    "rule.Installers.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ".dmg, .pkg, .app" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : ".dmg / .pkg / .app 安装文件" } }
+      }
+    },
+    "rule.Images.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "png, jpg, heic, gif, webp…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "png / jpg / heic / gif 等图片" } }
+      }
+    },
+    "rule.Videos.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "mp4, mov, mkv…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "mp4 / mov / mkv 等视频" } }
+      }
+    },
+    "rule.Audio.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "mp3, m4a, wav, flac…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "mp3 / m4a / wav 等音频" } }
+      }
+    },
+    "rule.PDF.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : ".pdf files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : ".pdf 文件" } }
+      }
+    },
+    "rule.Documents.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Word / Excel / PowerPoint / Pages / Numbers / txt / md" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "Word / Excel / PPT / Pages / Numbers / txt / md" } }
+      }
+    },
+    "rule.Archives.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "zip, rar, 7z, tar, gz…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "zip / rar / 7z / tar 等压缩包" } }
+      }
+    },
+    "rule.Code.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "source / config (.swift, .py, .json…)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "源代码 / 配置文件 (.swift, .py, .json…)" } }
+      }
+    },
+    "rule.Screenshots.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "filename starts with “Screenshot / CleanShot / 截屏”" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件名以「截屏 / Screenshot / CleanShot」开头" } }
+      }
+    },
+    "rule.Large.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "larger than 500 MB" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "超过 500 MB 的文件" } }
+      }
+    },
+    "rule.NewArrivals.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "added in the last 7 days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最近 7 天内加入的" } }
+      }
+    },
+    "rule.Stale.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "untouched for more than 30 days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "超过 30 天没动过的，可考虑清理" } }
+      }
+    },
+    "rule.Downloading.desc" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "browser downloads in progress (.crdownload, .part…)" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "浏览器还在下载中的临时文件 (.crdownload 等)" } }
+      }
+    },
     "Installers" : {
       "extractionState" : "manual",
       "localizations" : {
