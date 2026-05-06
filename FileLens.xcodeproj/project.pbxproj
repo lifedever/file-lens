@@ -36,6 +36,7 @@
 		B3FABADE094A0DAB8751E53E /* ThumbnailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC448360C870672CEE5E20A /* ThumbnailService.swift */; };
 		BB3ADF72F703933E87506D1B /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7918D2D372655629E017695D /* BookmarkStore.swift */; };
 		C5EFE5C7D1D2A585CD99FA0A /* KindClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */; };
+		C7B9F681A41DE611491846FF /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 796657B9F8347E915F892BD3 /* Localizable.xcstrings */; };
 		CF08180DA757AEC2234843DF /* RuleEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6809B84FD4ECE32202A026DE /* RuleEngineTests.swift */; };
 		D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA075B7637F930149C6308 /* FileLensApp.swift */; };
 		DBB9CA0E93E04B970FCCC733 /* FirstRunRulePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D9E9F8EE0495017F38D06E /* FirstRunRulePicker.swift */; };
@@ -72,6 +73,7 @@
 		5F5A619BA90CF8F861C2F42B /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
 		6809B84FD4ECE32202A026DE /* RuleEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleEngineTests.swift; sourceTree = "<group>"; };
 		7918D2D372655629E017695D /* BookmarkStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStore.swift; sourceTree = "<group>"; };
+		796657B9F8347E915F892BD3 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		80614E329F6887741C6CD472 /* SmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTest.swift; sourceTree = "<group>"; };
 		81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltInRules.swift; sourceTree = "<group>"; };
 		8437296A7FAD343066127C37 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -168,6 +170,7 @@
 			isa = PBXGroup;
 			children = (
 				8437296A7FAD343066127C37 /* Assets.xcassets */,
+				796657B9F8347E915F892BD3 /* Localizable.xcstrings */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -264,6 +267,7 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
 			);
 			mainGroup = 276BFB4C9D2C852B563C74B9;
 			minimizedProjectReferenceProxies = 1;
@@ -284,6 +288,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				0DF93577F854A421F8EBC0A4 /* Assets.xcassets in Resources */,
+				C7B9F681A41DE611491846FF /* Localizable.xcstrings in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -359,6 +364,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FileLens;
+				INFOPLIST_KEY_CFBundleLocalizations = (
+					en,
+					"zh-Hans",
+				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 lifedever";
 				INFOPLIST_KEY_NSMainStoryboardFile = "";
@@ -381,6 +390,10 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FileLens;
+				INFOPLIST_KEY_CFBundleLocalizations = (
+					en,
+					"zh-Hans",
+				);
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "© 2026 lifedever";
 				INFOPLIST_KEY_NSMainStoryboardFile = "";

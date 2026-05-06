@@ -33,6 +33,7 @@ targets:
         INFOPLIST_KEY_NSHumanReadableCopyright: "© 2026 lifedever"
         INFOPLIST_KEY_NSMainStoryboardFile: ""
         INFOPLIST_KEY_NSPrincipalClass: NSApplication
+        INFOPLIST_KEY_CFBundleLocalizations: ["en", "zh-Hans"]
         ENABLE_HARDENED_RUNTIME: YES
         CODE_SIGN_ENTITLEMENTS: FileLens.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
