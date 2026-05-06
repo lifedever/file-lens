@@ -28,7 +28,7 @@ struct ContentView: View {
                     switch viewMode {
                     case .grid:    FileGridView(files: files)
                     case .list:    FileTableView(files: files)
-                    case .gallery: FileGridView(files: files)  // Task 19 swaps this to GalleryView
+                    case .gallery: GalleryView(files: files)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
