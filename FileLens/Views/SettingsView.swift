@@ -107,6 +107,10 @@ private struct GeneralSettingsView: View {
 }
 
 private struct AboutSettingsView: View {
+    @State private var checking = false
+    @State private var updateInfo: UpdateInfo?
+    @State private var checkResultMessage: String?
+
     private var version: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
     }
@@ -136,9 +140,46 @@ private struct AboutSettingsView: View {
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 4)
+
+            // Check for updates row
+            HStack(spacing: 8) {
+                Button {
+                    Task { await checkUpdate() }
+                } label: {
+                    if checking {
+                        ProgressView().controlSize(.small)
+                    } else {
+                        Text("Check for Updates")
+                    }
+                }
+                .disabled(checking)
+                if let msg = checkResultMessage {
+                    Text(verbatim: msg).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.top, 6)
+            .alert("update.available.title", isPresented: Binding(
+                get: { updateInfo != nil },
+                set: { if !$0 { updateInfo = nil } }
+            ), presenting: updateInfo) { info in
+                Button("update.download") {
+                    if let url = URL(string: info.releaseURL) {
+                        NSWorkspace.shared.open(url)
+                    }
+                    updateInfo = nil
+                }
+                Button("Cancel", role: .cancel) { updateInfo = nil }
+            } message: { info in
+                Text(verbatim: String(format:
+                    NSLocalizedString("update.available.message.format",
+                        value: "A new version %@ is available.",
+                        comment: ""), info.latestTag))
+            }
+
             HStack(spacing: 16) {
                 Link("GitHub", destination: URL(string: "https://github.com/lifedever/file-lens")!)
                 Link("Issues", destination: URL(string: "https://github.com/lifedever/file-lens/issues")!)
+                Link("Sponsor", destination: URL(string: "https://github.com/sponsors/lifedever")!)
             }
             .font(.callout)
             .padding(.top, 6)
@@ -147,5 +188,18 @@ private struct AboutSettingsView: View {
         .padding(.vertical, 24)
         .frame(maxWidth: .infinity)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func checkUpdate() async {
+        checking = true
+        checkResultMessage = nil
+        defer { checking = false }
+        let info = await UpdateChecker.shared.checkForUpdate(currentVersion: version)
+        if let info {
+            updateInfo = info
+        } else {
+            checkResultMessage = NSLocalizedString("update.uptodate",
+                value: "You're on the latest version.", comment: "")
+        }
     }
 }

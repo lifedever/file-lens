@@ -576,6 +576,48 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "立即重启" } }
       }
     },
+    "Check for Updates" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Check for Updates" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检查更新" } }
+      }
+    },
+    "update.available.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update Available" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "有新版本" } }
+      }
+    },
+    "update.available.message.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A new version %@ is available." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "检测到新版本 %@。" } }
+      }
+    },
+    "update.download" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Download…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载…" } }
+      }
+    },
+    "update.uptodate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "You're on the latest version." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已是最新版本。" } }
+      }
+    },
+    "Sponsor" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sponsor" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "赞助" } }
+      }
+    },
     "about.tagline" : {
       "extractionState" : "manual",
       "localizations" : {
