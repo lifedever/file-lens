@@ -16,7 +16,7 @@ struct ContentView: View {
     @State private var selectedWorkspace: Workspace?
     @State private var selection: SidebarSelection?
     @State private var coordinator: WorkspaceCoordinator?
-    @State private var viewMode: ViewMode = .grid
+    @State private var viewMode: ViewMode = .list
     @State private var selectedFile: FileNode?
     @State private var showInspector: Bool = false
     @State private var pendingWorkspace: PendingWorkspace?

@@ -49,10 +49,12 @@ struct FileTableView: View {
             .width(80)
 
             TableColumn("Date Added", value: \.dateAdded) { f in
-                Text(f.dateAdded, style: .date)
+                Text(f.dateAdded, format: .dateTime
+                    .year().month().day().hour().minute())
                     .foregroundStyle(.secondary)
+                    .monospacedDigit()
             }
-            .width(120)
+            .width(160)
 
             TableColumn("Tags") { (f: FileNode) in
                 Text(f.tags.map { TagDisplay.localizedName($0.name) }.joined(separator: ", "))
