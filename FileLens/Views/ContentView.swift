@@ -3,14 +3,19 @@ import SwiftData
 
 struct ContentView: View {
     @State private var selectedWorkspace: Workspace?
+    @State private var selection: SidebarSelection?
     @State private var coordinator: WorkspaceCoordinator?
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
     var body: some View {
         NavigationSplitView {
-            SidebarView(selectedWorkspace: $selectedWorkspace, onAddFolder: addFolder)
-                .frame(minWidth: 220)
+            SidebarView(
+                selection: $selection,
+                selectedWorkspace: $selectedWorkspace,
+                onAddFolder: addFolder
+            )
+            .frame(minWidth: 220)
         } detail: {
             if workspaces.isEmpty {
                 EmptyStateView(onAddFolder: addFolder)
