@@ -28,3 +28,9 @@ dist/
 .env
 .env.local
 *.local.json
+
+# AI assistant artifacts — kept local only
+.claude/
+.cursor/
+CLAUDE.md
+docs/
