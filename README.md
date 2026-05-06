@@ -1,28 +1,26 @@
+# FileLens
+
 <div align="center">
-  <img src="icons/icon.png" width="128" height="128" alt="FileLens" />
 
-  <h1>FileLens</h1>
+<img src="icons/icon.png" width="220" alt="FileLens" />
 
-  <p><b>A non-destructive view layer for any folder on macOS.</b></p>
-  <p>Watch any folder, group files by tags — without ever moving the originals.</p>
+### FileLens
 
-  <p>
-    <a href="https://github.com/lifedever/file-lens/releases/latest">
-      <img src="https://img.shields.io/github/v/release/lifedever/file-lens?style=flat-square&label=download" alt="Download" />
-    </a>
-    <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square" alt="macOS 14+" />
-    <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT" />
-    <a href="https://github.com/lifedever/file-lens/stargazers">
-      <img src="https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square" alt="Stars" />
-    </a>
-  </p>
+**A non-destructive view layer for any folder on macOS.**
+Watch any folder, group files by tags — without ever moving the originals.
 
-  <p>
-    English · <a href="README.zh-CN.md">简体中文</a>
-  </p>
-</div>
+![Latest](https://img.shields.io/github/v/release/lifedever/file-lens?label=Latest&color=brightgreen&style=flat-square)
+![platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+![stars](https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square)
+
+[⬇ **Download Latest**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **Sponsor**](https://github.com/sponsors/lifedever)
+
+[中文文档](README.zh-CN.md)
 
 ---
+
+</div>
 
 ## What is FileLens?
 
@@ -32,14 +30,14 @@ Your `~/Downloads` is a graveyard. Hundreds of `.dmg`s, screenshots, PDFs, and `
 
 ## Features
 
-- 🏷 **Auto-tag** with 13 built-in rules (Installers, Images, Screenshots, Large files, Stale…) + your own custom rules
-- 📁 **Multi-folder workspaces** — watch as many folders as you want, each with its own rule set
+- 🏷 **Auto-tag** — 13 built-in rules (Installers / Images / Screenshots / Large files / Stale…) plus your own custom rules
+- 📁 **Multi-folder workspaces** — watch any number of folders, each with its own rule set
 - ⚡ **Live FSEvents updates** — new downloads appear instantly with the right tags
-- 🔍 **Three view modes**: icon (⌘1), list (⌘2 with date grouping), gallery (⌘4)
-- 👁 **Quick Look (Space)**, drag-out, Reveal in Finder (⌘R), Move to Trash (⌘⌫)
-- 🎨 **Native macOS feel** — system file icons, Finder-aligned shortcuts, Light / Dark mode
+- 🔍 **Three view modes** — icon (⌘1), list (⌘2 with date grouping), gallery (⌘4)
+- 👁 **Native interactions** — Quick Look (Space), drag-out, Reveal in Finder (⌘R), Move to Trash (⌘⌫)
+- 🎨 **Native macOS feel** — system file icons, Finder-aligned shortcuts, Light / Dark / System
 - 🌐 **English + 简体中文** out of the box
-- 🛡 **Non-destructive guarantee**: no rule ever moves, renames, or modifies your files
+- 🛡 **Non-destructive guarantee** — no rule ever moves, renames, or modifies your files
 
 ## Install
 

@@ -1,28 +1,26 @@
+# FileLens
+
 <div align="center">
-  <img src="icons/icon.png" width="128" height="128" alt="FileLens" />
 
-  <h1>FileLens</h1>
+<img src="icons/icon.png" width="220" alt="FileLens" />
 
-  <p><b>给 macOS 任何文件夹加一层"非破坏性"标签视图。</b></p>
-  <p>监听任意文件夹，按标签分组浏览——从不移动原始文件。</p>
+### FileLens
 
-  <p>
-    <a href="https://github.com/lifedever/file-lens/releases/latest">
-      <img src="https://img.shields.io/github/v/release/lifedever/file-lens?style=flat-square&label=下载" alt="Download" />
-    </a>
-    <img src="https://img.shields.io/badge/macOS-14%2B-blue?style=flat-square" alt="macOS 14+" />
-    <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="MIT" />
-    <a href="https://github.com/lifedever/file-lens/stargazers">
-      <img src="https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square" alt="Stars" />
-    </a>
-  </p>
+**给 macOS 任何文件夹加一层"非破坏性"标签视图。**
+监听任意文件夹，按标签分组浏览——从不移动原始文件。
 
-  <p>
-    简体中文 · <a href="README.md">English</a>
-  </p>
-</div>
+![Latest](https://img.shields.io/github/v/release/lifedever/file-lens?label=Latest&color=brightgreen&style=flat-square)
+![platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+![stars](https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square)
+
+[⬇ **下载最新版**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **赞助**](https://github.com/sponsors/lifedever)
+
+[English](README.md)
 
 ---
+
+</div>
 
 ## FileLens 是什么？
 
@@ -32,14 +30,14 @@
 
 ## 功能特性
 
-- 🏷 **自动打标签**：13 条内置规则（安装包 / 图片 / 截图 / 大文件 / 长期未动……）+ 你自己定义的规则
-- 📁 **多工作区**：监听任意多个文件夹，每个工作区有独立规则集
-- ⚡ **FSEvents 实时更新**：新下载的文件立刻出现并自动打标签
-- 🔍 **三种视图**：图标（⌘1）、列表（⌘2，按时间自动分组）、画廊（⌘4）
-- 👁 **快速预览**（Space）、拖出、在 Finder 中显示（⌘R）、移到废纸篓（⌘⌫）
-- 🎨 **原生 macOS 体验**：系统文件图标、与 Finder 对齐的快捷键、浅色 / 深色 / 跟随系统
+- 🏷 **自动打标签** —— 13 条内置规则（安装包 / 图片 / 截图 / 大文件 / 长期未动……）+ 自定义规则
+- 📁 **多工作区** —— 监听任意多个文件夹，每个工作区有独立规则集
+- ⚡ **FSEvents 实时更新** —— 新下载的文件立刻出现并自动打标签
+- 🔍 **三种视图** —— 图标（⌘1）、列表（⌘2，按时间自动分组）、画廊（⌘4）
+- 👁 **原生交互** —— 快速预览（Space）、拖出、在 Finder 中显示（⌘R）、移到废纸篓（⌘⌫）
+- 🎨 **原生 macOS 体验** —— 系统文件图标、与 Finder 对齐的快捷键、浅色 / 深色 / 跟随系统
 - 🌐 **中英双语**开箱即用
-- 🛡 **非破坏性承诺**：任何规则都不会移动、重命名、修改你的文件
+- 🛡 **非破坏性承诺** —— 任何规则都不会移动、重命名、修改你的文件
 
 ## 安装
 
