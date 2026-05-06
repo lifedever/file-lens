@@ -34,6 +34,22 @@ struct FileGridView: View {
                             }
                             .keyboardShortcut(" ", modifiers: [])
                             Divider()
+                            Menu("Add Tag") {
+                                let existing = workspaceTags(for: file)
+                                ForEach(existing, id: \.self) { tag in
+                                    Button(tag) { addTag(tag, to: file) }
+                                }
+                                if !existing.isEmpty { Divider() }
+                                Button("New Tag…") { promptNewTag(for: file) }
+                            }
+                            if file.tags.contains(where: { $0.source == "manual" }) {
+                                Menu("Remove Tag") {
+                                    ForEach(file.tags.filter { $0.source == "manual" }) { tag in
+                                        Button(tag.name) { removeManualTag(tag) }
+                                    }
+                                }
+                            }
+                            Divider()
                             Button("Move to Trash", role: .destructive) {
                                 FileActions.moveToTrash(file, modelContext: modelContext)
                             }
@@ -51,6 +67,43 @@ struct FileGridView: View {
         let url = folder.appendingPathComponent(file.relativePath)
         if let img = await ThumbnailService.shared.thumbnail(for: url) {
             await MainActor.run { thumbs[file.id] = img }
+        }
+    }
+
+    // MARK: - Manual tag helpers
+
+    private func workspaceTags(for file: FileNode) -> [String] {
+        guard let ws = file.workspace else { return [] }
+        var s = Set<String>()
+        for f in ws.files where f.isPresent {
+            for t in f.tags { s.insert(t.name) }
+        }
+        return s.sorted()
+    }
+
+    private func addTag(_ name: String, to file: FileNode) {
+        let tag = FileTag(name: name, source: "manual", ruleID: nil)
+        tag.file = file
+        modelContext.insert(tag)
+        file.tags.append(tag)
+        try? modelContext.save()
+    }
+
+    private func removeManualTag(_ tag: FileTag) {
+        modelContext.delete(tag)
+        try? modelContext.save()
+    }
+
+    private func promptNewTag(for file: FileNode) {
+        let alert = NSAlert()
+        alert.messageText = "New tag for \(file.name)"
+        let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        alert.accessoryView = field
+        alert.addButton(withTitle: "Add")
+        alert.addButton(withTitle: "Cancel")
+        if alert.runModal() == .alertFirstButtonReturn {
+            let name = field.stringValue.trimmingCharacters(in: .whitespaces)
+            if !name.isEmpty { addTag(name, to: file) }
         }
     }
 }
