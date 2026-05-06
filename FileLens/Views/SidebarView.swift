@@ -45,7 +45,7 @@ struct SidebarView: View {
                 Section("Tags") {
                     ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
                         Label {
-                            Text(LocalizedStringKey(rule.name))
+                            Text(verbatim: NSLocalizedString(rule.name, value: rule.name, comment: ""))
                         } icon: {
                             Image(systemName: "tag")
                         }

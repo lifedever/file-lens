@@ -29,7 +29,7 @@ struct FirstRunRulePicker: View {
                                 if isOn { enabled.insert(r.id) } else { enabled.remove(r.id) }
                             }
                         )) {
-                            Text(LocalizedStringKey(r.name))
+                            Text(verbatim: NSLocalizedString(r.name, value: r.name, comment: ""))
                         }
                         .toggleStyle(.checkbox)
                         .padding(.vertical, 2)
