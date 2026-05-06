@@ -6,8 +6,8 @@
 
 ### FileLens
 
-**给 macOS 任何文件夹加一层"非破坏性"标签视图。**
-监听任意文件夹，按标签分组浏览——从不移动原始文件。
+**只看不动你的文件。**
+给 macOS 任意文件夹加一层标签分组视图，原文件始终保持原位。
 
 ![Latest](https://img.shields.io/github/v/release/lifedever/file-lens?label=Latest&color=brightgreen&style=flat-square)
 ![platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue?style=flat-square)
@@ -24,9 +24,9 @@
 
 ## FileLens 是什么？
 
-你的 `~/Downloads` 是一片坟场。几百个 `.dmg`、截图、PDF、`IMG_4523.png` 你从来没整理过。市面上的工具要么是物理搬运型（Hazel——规则一错就翻车），要么太弱（Finder 智能文件夹）。
+你的 `~/Downloads` 里堆了几百个 `.dmg`、截图、PDF——一直没整理。市面上的工具要么是物理搬运型（Hazel，规则一错就翻车），要么太弱（Finder 智能文件夹只能搜，不能成体系地分组）。
 
-**FileLens 填中间**。指给它任意文件夹，它按类型 / 文件名 / 大小 / 时间给每个文件打标签，给你一个 Finder 风格侧栏按标签切片浏览。**原文件一根头发都不动**。FileLens 唯一会动文件的物理操作就是"移到废纸篓"——而且只在你主动点击的时候。
+**FileLens 不搬文件，只在 App 里给每个文件打上标签，按你想要的维度（类型 / 文件名 / 大小 / 时间）分组展示。** 原文件始终在原文件夹，不会被移动、重命名或修改。FileLens 唯一会动文件的物理操作就是"移到废纸篓"——而且只在你主动点击的时候。
 
 ## 功能特性
 

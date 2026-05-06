@@ -24,9 +24,9 @@ Watch any folder, group files by tags — without ever moving the originals.
 
 ## What is FileLens?
 
-Your `~/Downloads` is a graveyard. Hundreds of `.dmg`s, screenshots, PDFs, and `IMG_4523.png`s you never sort. Existing tools either physically move files (Hazel — risky if a rule misfires) or are too weak (Finder Smart Folders).
+Your `~/Downloads` accumulates hundreds of files — `.dmg`s, screenshots, PDFs, `IMG_4523.png`s — that you never sort. Existing tools either physically move them (Hazel — risky if a rule misfires) or are too weak (Finder Smart Folders).
 
-**FileLens fills the middle.** Point it at any folder; it tags every file by type / name / size / age, and gives you a Finder-style sidebar to slice the contents by tag. Original files **never move**. The only physical action FileLens ever takes is "Move to Trash" — and only when you click it.
+**FileLens does neither.** It tags every file by type / name / size / age inside the app, and gives you a Finder-style sidebar to slice the contents by tag — without ever touching the files themselves. The only physical action FileLens ever takes is "Move to Trash", and only when you click it.
 
 ## Features
 
