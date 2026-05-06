@@ -33,14 +33,27 @@ struct ContentView: View {
                 EmptyStateView(onAddFolder: addFolder)
             } else if let ws = selectedWorkspace {
                 let files = filesForCurrentSelection(workspace: ws)
-                Group {
-                    switch viewMode {
-                    case .grid:    FileGridView(files: files, selectedFile: $selectedFile)
-                    case .list:    FileTableView(files: files)
-                    case .gallery: GalleryView(files: files)
+                VStack(spacing: 0) {
+                    Group {
+                        switch viewMode {
+                        case .grid:    FileGridView(files: files, selectedFile: $selectedFile)
+                        case .list:    FileTableView(files: files)
+                        case .gallery: GalleryView(files: files)
+                        }
                     }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                    Divider()
+                    HStack {
+                        Text("\(files.count) items")
+                        Text("·")
+                        Text(byteFormatter.string(fromByteCount: files.reduce(0) { $0 + $1.size }))
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .searchable(text: $searchText, placement: .toolbar)
                 .inspector(isPresented: $showInspector) {
                     InspectorView(file: selectedFile)
@@ -185,5 +198,11 @@ struct ContentView: View {
         rule.workspace = ws
         modelContext.insert(rule)
         editingRule = rule
+    }
+
+    private var byteFormatter: ByteCountFormatter {
+        let f = ByteCountFormatter()
+        f.countStyle = .file
+        return f
     }
 }
