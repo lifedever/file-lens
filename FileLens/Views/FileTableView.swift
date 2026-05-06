@@ -6,6 +6,10 @@ struct FileTableView: View {
     @Binding var selectedFile: FileNode?
     @Environment(\.modelContext) private var modelContext
 
+    @State private var sortOrder: [KeyPathComparator<FileNode>] = [
+        KeyPathComparator(\FileNode.dateAdded, order: .reverse)
+    ]
+
     private var grouped: [(bucket: DateBucket, files: [FileNode])] {
         var byBucket: [DateBucket: [FileNode]] = [:]
         for f in files {
@@ -13,7 +17,7 @@ struct FileTableView: View {
         }
         return DateBucket.allCases.compactMap { b in
             guard let arr = byBucket[b], !arr.isEmpty else { return nil }
-            return (b, arr.sorted { $0.dateAdded > $1.dateAdded })
+            return (b, arr.sorted(using: sortOrder))
         }
     }
 
@@ -27,8 +31,8 @@ struct FileTableView: View {
     }
 
     var body: some View {
-        Table(of: FileNode.self, selection: selectionBinding) {
-            TableColumn("Name") { f in
+        Table(of: FileNode.self, selection: selectionBinding, sortOrder: $sortOrder) {
+            TableColumn("Name", value: \.name) { f in
                 HStack(spacing: 6) {
                     Image(nsImage: icon(for: f))
                         .resizable().interpolation(.high)
@@ -37,14 +41,14 @@ struct FileTableView: View {
                 }
             }
 
-            TableColumn("Size") { f in
+            TableColumn("Size", value: \.size) { f in
                 Text(byteFormatter.string(fromByteCount: f.size))
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
             .width(80)
 
-            TableColumn("Date Added") { f in
+            TableColumn("Date Added", value: \.dateAdded) { f in
                 Text(f.dateAdded, style: .date)
                     .foregroundStyle(.secondary)
             }
@@ -58,7 +62,7 @@ struct FileTableView: View {
                     .truncationMode(.tail)
             }
 
-            TableColumn("Kind") { (f: FileNode) in
+            TableColumn("Kind", value: \.kind) { (f: FileNode) in
                 Text(KindDisplay.localizedName(f.kind))
                     .font(.caption)
                     .foregroundStyle(.secondary)

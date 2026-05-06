@@ -16,12 +16,14 @@ struct SidebarView: View {
     let onNewRule: () -> Void
     let onEditRule: (Rule) -> Void
 
+    @State private var collapsed: Set<UUID> = []
+
     var body: some View {
         List(selection: $selection) {
             Section("Workspaces") {
                 ForEach(workspaces) { ws in
-                    workspaceRow(ws)
-                    if ws.id == selectedWorkspace?.id {
+                    workspaceHeader(ws)
+                    if !collapsed.contains(ws.id) {
                         nestedRows(for: ws)
                     }
                 }
@@ -36,57 +38,86 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .onChange(of: selection) { _, sel in
+            // When user clicks a tag/system row in any workspace, make
+            // that workspace active so the file view filters correctly.
+            switch sel {
+            case .tag(let wsID, _),
+                 .uncategorized(let wsID),
+                 .trashed(let wsID):
+                if let ws = workspaces.first(where: { $0.id == wsID }),
+                   ws.id != selectedWorkspace?.id {
+                    selectedWorkspace = ws
+                }
+            default:
+                break
+            }
+        }
     }
 
+    // MARK: Workspace header (folder row, with chevron)
+
     @ViewBuilder
-    private func workspaceRow(_ ws: Workspace) -> some View {
-        let isSelected = ws.id == selectedWorkspace?.id
-        HStack(spacing: 6) {
-            Image(systemName: isSelected ? "folder.fill" : "folder")
+    private func workspaceHeader(_ ws: Workspace) -> some View {
+        let isExpanded = !collapsed.contains(ws.id)
+        let isActive = ws.id == selectedWorkspace?.id
+
+        HStack(spacing: 4) {
+            Button {
+                toggleCollapse(ws.id)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            Image(systemName: isActive ? "folder.fill" : "folder")
                 .foregroundStyle(.tint)
             Text(ws.name)
-                .fontWeight(isSelected ? .semibold : .regular)
-            Spacer()
+                .fontWeight(isActive ? .semibold : .regular)
+                .lineLimit(1)
+            Spacer(minLength: 6)
             Text("\(ws.files.filter { $0.isPresent }.count)")
                 .foregroundStyle(.secondary)
                 .font(.caption.monospacedDigit())
         }
         .contentShape(Rectangle())
         .onTapGesture {
+            // Tap on the row (anywhere outside the chevron) selects the workspace.
             selectedWorkspace = ws
             selection = nil
         }
         .padding(.vertical, 3)
     }
 
+    // MARK: Nested tag + system rows under a workspace
+
     @ViewBuilder
     private func nestedRows(for ws: Workspace) -> some View {
-        // Tag rows (indented)
+        // Tag rows — use .tag() so List renders native selection styling.
         ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
-            HStack(spacing: 6) {
-                Image(systemName: "tag")
-                    .foregroundStyle(rule.enabled ? .secondary : Color.secondary.opacity(0.4))
-                Text(verbatim: TagDisplay.localizedName(rule.name))
-                Spacer()
-                let count = filesCount(for: ws, tag: rule.name)
-                if count > 0 {
-                    Text("\(count)")
-                        .foregroundStyle(.secondary)
-                        .font(.caption.monospacedDigit())
+            Label {
+                HStack {
+                    Text(verbatim: TagDisplay.localizedName(rule.name))
+                        .lineLimit(1)
+                    Spacer()
+                    let count = filesCount(for: ws, tag: rule.name)
+                    if count > 0 {
+                        Text("\(count)")
+                            .foregroundStyle(.secondary)
+                            .font(.caption.monospacedDigit())
+                    }
                 }
+            } icon: {
+                Image(systemName: "tag")
             }
-            .padding(.leading, 16)
-            .padding(.vertical, 2)
-            .contentShape(Rectangle())
+            .padding(.leading, 18)
             .opacity(rule.enabled ? 1.0 : 0.5)
-            .onTapGesture {
-                selection = .tag(workspaceID: ws.id, name: rule.name)
-            }
-            .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isTagSelected(ws: ws, name: rule.name) ? Color.accentColor.opacity(0.18) : Color.clear)
-                    .padding(.horizontal, -4)
-            )
+            .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name) as SidebarSelection?)
             .contextMenu {
                 Button("Edit Rule…") { onEditRule(rule) }
                 Button(rule.enabled ? "Disable" : "Enable") {
@@ -95,69 +126,56 @@ struct SidebarView: View {
             }
         }
 
+        // New Rule button (not selectable)
         Button {
             onNewRule()
         } label: {
             Label("New Rule…", systemImage: "plus")
                 .foregroundStyle(.secondary)
-                .padding(.leading, 16)
+                .padding(.leading, 18)
         }
         .buttonStyle(.plain)
         .padding(.vertical, 2)
 
-        // Divider between tags and system rows
-        Rectangle()
-            .fill(Color.secondary.opacity(0.2))
-            .frame(height: 1)
-            .padding(.leading, 28)
-            .padding(.vertical, 4)
-
-        // System rows (Uncategorized + Trashed)
-        systemRow(label: "Uncategorized", systemImage: "questionmark.circle",
-                  count: uncategorizedCount(for: ws),
-                  isSelected: isUncategorizedSelected(ws: ws),
-                  action: { selection = .uncategorized(workspaceID: ws.id) })
-        systemRow(label: "Trashed", systemImage: "trash",
-                  count: trashedCount(for: ws),
-                  isSelected: isTrashedSelected(ws: ws),
-                  action: { selection = .trashed(workspaceID: ws.id) })
-    }
-
-    @ViewBuilder
-    private func systemRow(label: LocalizedStringKey, systemImage: String,
-                           count: Int, isSelected: Bool, action: @escaping () -> Void) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: systemImage).foregroundStyle(.secondary)
-            Text(label)
-            Spacer()
-            if count > 0 {
-                Text("\(count)")
-                    .foregroundStyle(.secondary)
-                    .font(.caption.monospacedDigit())
+        // System rows — also use native .tag() selection
+        Label {
+            HStack {
+                Text("Uncategorized")
+                Spacer()
+                let count = uncategorizedCount(for: ws)
+                if count > 0 {
+                    Text("\(count)")
+                        .foregroundStyle(.secondary)
+                        .font(.caption.monospacedDigit())
+                }
             }
+        } icon: {
+            Image(systemName: "questionmark.circle")
         }
-        .padding(.leading, 16)
-        .padding(.vertical, 2)
-        .contentShape(Rectangle())
-        .onTapGesture(perform: action)
-        .background(
-            RoundedRectangle(cornerRadius: 5)
-                .fill(isSelected ? Color.accentColor.opacity(0.18) : Color.clear)
-                .padding(.horizontal, -4)
-        )
+        .padding(.leading, 18)
+        .tag(SidebarSelection.uncategorized(workspaceID: ws.id) as SidebarSelection?)
+
+        Label {
+            HStack {
+                Text("Trashed")
+                Spacer()
+                let count = trashedCount(for: ws)
+                if count > 0 {
+                    Text("\(count)")
+                        .foregroundStyle(.secondary)
+                        .font(.caption.monospacedDigit())
+                }
+            }
+        } icon: {
+            Image(systemName: "trash")
+        }
+        .padding(.leading, 18)
+        .tag(SidebarSelection.trashed(workspaceID: ws.id) as SidebarSelection?)
     }
 
-    private func isTagSelected(ws: Workspace, name: String) -> Bool {
-        if case let .tag(wsID, n) = selection { return wsID == ws.id && n == name }
-        return false
-    }
-    private func isUncategorizedSelected(ws: Workspace) -> Bool {
-        if case let .uncategorized(wsID) = selection { return wsID == ws.id }
-        return false
-    }
-    private func isTrashedSelected(ws: Workspace) -> Bool {
-        if case let .trashed(wsID) = selection { return wsID == ws.id }
-        return false
+    private func toggleCollapse(_ id: UUID) {
+        if collapsed.contains(id) { collapsed.remove(id) }
+        else { collapsed.insert(id) }
     }
 
     private func filesCount(for ws: Workspace, tag: String) -> Int {

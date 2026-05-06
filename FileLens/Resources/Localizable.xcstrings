@@ -13,7 +13,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Pick any folder (Downloads, Desktop…) and FileLens will tag the files inside by type — installers, screenshots, large files, and more. Your files stay where they are." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选一个你常用的文件夹（比如 Downloads、Desktop），FileLens 会自动按文件类型给里面的文件打上标签——安装包、截图、大文件……\n文件物理位置不会改变，FileLens 只是给你一个分类后的视图。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选一个你常用的文件夹（比如 Downloads、Desktop），FileLens 会自动给里面的文件打上标签——安装包、截图、大文件……\n文件物理位置不会改变，FileLens 只是按标签把它们重新组织展示。" } }
       }
     },
     "empty.feat1.title" : {
@@ -27,7 +27,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "13 built-in rules cover most file types out of the box." } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "13 条内置规则覆盖常见文件类型，开箱即用。" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "13 条内置规则覆盖常见文件，开箱即用。" } }
       }
     },
     "empty.feat2.title" : {
@@ -468,7 +468,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Uncategorized" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未分类" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "无标签" } }
       }
     },
     "Trashed" : {
@@ -699,7 +699,7 @@
       "extractionState" : "manual",
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Kind" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "类型" } }
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "种类" } }
       }
     },
     "Size" : {
