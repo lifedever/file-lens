@@ -15,7 +15,9 @@
 		634BA646758DCC9EA0AC3887 /* StoreMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 155A6BAEA16D45D6A694F583 /* StoreMigrationTests.swift */; };
 		82C50720487DE41E2F1EA732 /* SmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80614E329F6887741C6CD472 /* SmokeTest.swift */; };
 		97A7EC8B05EFDB6A1442B25B /* Workspace.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57FC96CE6EB7EA1592EC8277 /* Workspace.swift */; };
+		A75A67CD151F61F8D9DE1690 /* KindClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3056F15ECF7AD4765009315 /* KindClassifier.swift */; };
 		A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7944B285B52C768330CAC0E /* FileTag.swift */; };
+		C5EFE5C7D1D2A585CD99FA0A /* KindClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */; };
 		D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA075B7637F930149C6308 /* FileLensApp.swift */; };
 /* End PBXBuildFile section */
 
@@ -38,8 +40,10 @@
 		57FC96CE6EB7EA1592EC8277 /* Workspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Workspace.swift; sourceTree = "<group>"; };
 		80614E329F6887741C6CD472 /* SmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTest.swift; sourceTree = "<group>"; };
 		8437296A7FAD343066127C37 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifierTests.swift; sourceTree = "<group>"; };
 		A7944B285B52C768330CAC0E /* FileTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTag.swift; sourceTree = "<group>"; };
 		B4DA075B7637F930149C6308 /* FileLensApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLensApp.swift; sourceTree = "<group>"; };
+		E3056F15ECF7AD4765009315 /* KindClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifier.swift; sourceTree = "<group>"; };
 		EAEEC2CDC7A283F82157D107 /* FileLensTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FileLensTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8CC5E93498888D920C8825F /* FileLens.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FileLens.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -48,6 +52,7 @@
 		0BC6AB81DDA190D1F80B47A9 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				E3056F15ECF7AD4765009315 /* KindClassifier.swift */,
 				44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */,
 			);
 			path = Services;
@@ -56,6 +61,7 @@
 		1F05A322587529E129E8CB85 /* FileLensTests */ = {
 			isa = PBXGroup;
 			children = (
+				9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */,
 				80614E329F6887741C6CD472 /* SmokeTest.swift */,
 				155A6BAEA16D45D6A694F583 /* StoreMigrationTests.swift */,
 			);
@@ -208,6 +214,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C5EFE5C7D1D2A585CD99FA0A /* KindClassifierTests.swift in Sources */,
 				82C50720487DE41E2F1EA732 /* SmokeTest.swift in Sources */,
 				634BA646758DCC9EA0AC3887 /* StoreMigrationTests.swift in Sources */,
 			);
@@ -221,6 +228,7 @@
 				D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */,
 				3DBBF690170053F76C83D62A /* FileNode.swift in Sources */,
 				A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */,
+				A75A67CD151F61F8D9DE1690 /* KindClassifier.swift in Sources */,
 				32B594F0525E9A0309B08E03 /* Rule.swift in Sources */,
 				35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */,
 				97A7EC8B05EFDB6A1442B25B /* Workspace.swift in Sources */,
