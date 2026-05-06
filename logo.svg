@@ -1,55 +1,76 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#60A5FA"/>
-      <stop offset="100%" stop-color="#1E40AF"/>
+    <!-- Refined background gradient: deep indigo → softer blue, less saturated -->
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#5B8EE8"/>
+      <stop offset="100%" stop-color="#1F3FA8"/>
     </linearGradient>
-    <linearGradient id="lens" x1="0" y1="0" x2="0.4" y2="1">
+
+    <!-- Card surface gradient -->
+    <linearGradient id="card" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0%" stop-color="#FFFFFF"/>
-      <stop offset="100%" stop-color="#E5E7EB"/>
+      <stop offset="100%" stop-color="#EAEFF7"/>
     </linearGradient>
-    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1E40AF"/>
-      <stop offset="100%" stop-color="#1E3A8A"/>
+
+    <!-- Subtle top sheen -->
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="white" stop-opacity="0.18"/>
+      <stop offset="55%" stop-color="white" stop-opacity="0"/>
     </linearGradient>
-    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-opacity="0.3"/>
+
+    <filter id="cardShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-opacity="0.28"/>
     </filter>
-    <filter id="lensShadow" x="-50%" y="-50%" width="200%" height="200%">
-      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-opacity="0.25"/>
+
+    <filter id="tagShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="6" flood-opacity="0.22"/>
     </filter>
   </defs>
 
   <!-- Rounded background -->
   <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg)"/>
 
-  <!-- Subtle highlight along the top of the rounded background -->
-  <rect x="100" y="100" width="824" height="200" rx="185" ry="185"
-        fill="white" opacity="0.08"/>
+  <!-- Top sheen -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#sheen)"/>
 
-  <!-- Magnifying glass -->
-  <g filter="url(#shadow)">
-    <!-- Handle (rotated 45° around lens center 440,440) -->
-    <g transform="rotate(45 440 440)">
-      <rect x="690" y="406" width="220" height="68" rx="34" fill="url(#frame)"/>
+  <!-- White rounded "card" representing a file. Tilted slightly for depth. -->
+  <g transform="translate(512 540) rotate(-6)" filter="url(#cardShadow)">
+    <rect x="-260" y="-330" width="520" height="660" rx="56" fill="url(#card)"/>
+
+    <!-- Three list rows on the card, each a thin gray pill with a colored leading dot.
+         Represents a list of tagged files — the core FileLens metaphor. -->
+    <g transform="translate(0 -130)">
+      <circle cx="-160" cy="0" r="20" fill="#3B82F6"/>
+      <rect x="-120" y="-14" width="280" height="28" rx="14" fill="#D7DDE5"/>
     </g>
-
-    <!-- Lens body -->
-    <circle cx="440" cy="440" r="266" fill="url(#lens)" stroke="url(#frame)" stroke-width="42"/>
+    <g transform="translate(0 -30)">
+      <circle cx="-160" cy="0" r="20" fill="#10B981"/>
+      <rect x="-120" y="-14" width="220" height="28" rx="14" fill="#D7DDE5"/>
+    </g>
+    <g transform="translate(0 70)">
+      <circle cx="-160" cy="0" r="20" fill="#F59E0B"/>
+      <rect x="-120" y="-14" width="260" height="28" rx="14" fill="#D7DDE5"/>
+    </g>
+    <g transform="translate(0 170)">
+      <circle cx="-160" cy="0" r="20" fill="#A855F7"/>
+      <rect x="-120" y="-14" width="200" height="28" rx="14" fill="#D7DDE5"/>
+    </g>
   </g>
 
-  <!-- Three tag pills inside the lens — mirrors the rule colors -->
-  <g transform="translate(440 440)" filter="url(#lensShadow)">
-    <!-- Tag 1: Installers blue -->
-    <rect x="-138" y="-92" width="248" height="48" rx="24" fill="#3B82F6"/>
-    <circle cx="-114" cy="-68" r="9" fill="white" opacity="0.85"/>
-
-    <!-- Tag 2: Images green (slightly shorter, offset right) -->
-    <rect x="-118" y="-22" width="200" height="48" rx="24" fill="#10B981"/>
-    <circle cx="-94" cy="2" r="9" fill="white" opacity="0.85"/>
-
-    <!-- Tag 3: Screenshots pink/orange -->
-    <rect x="-138" y="48" width="226" height="48" rx="24" fill="#F59E0B"/>
-    <circle cx="-114" cy="72" r="9" fill="white" opacity="0.85"/>
+  <!-- A single bold accent tag clipped over the upper-right corner of the card,
+       pointing inward — the "lens" / signifier that this is about TAGS. -->
+  <g transform="translate(720 280) rotate(35)" filter="url(#tagShadow)">
+    <path d="M -150 -64
+             L 64 -64
+             A 22 22 0 0 1 84 -52
+             L 154 0
+             L 84 52
+             A 22 22 0 0 1 64 64
+             L -150 64
+             A 28 28 0 0 1 -178 36
+             L -178 -36
+             A 28 28 0 0 1 -150 -64 Z"
+          fill="#3B82F6"/>
+    <circle cx="56" cy="0" r="14" fill="white"/>
   </g>
 </svg>

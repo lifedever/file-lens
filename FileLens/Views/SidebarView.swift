@@ -29,12 +29,11 @@ struct SidebarView: View {
                 DisclosureGroup(isExpanded: expansionBinding(for: ws.id)) {
                     // Children render indented automatically by DisclosureGroup.
 
-                    // Tag rows
+                    // Tag rows — no leading icon (they'd all be the same)
                     ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
-                        rowLabel(
+                        tagRow(
                             text: TagDisplay.localizedName(rule.name),
-                            count: filesCount(for: ws, tag: rule.name),
-                            icon: AnyView(symbolIcon("tag.fill").foregroundStyle(.tint))
+                            count: filesCount(for: ws, tag: rule.name)
                         )
                         .opacity(rule.enabled ? 1.0 : 0.5)
                         .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
@@ -142,7 +141,7 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: Row builder — uniform Label with optional bold + trailing CountBadge
+    // MARK: Row builders
 
     @ViewBuilder
     private func rowLabel(text: String, count: Int, icon: AnyView, bold: Bool = false) -> some View {
@@ -160,6 +159,18 @@ struct SidebarView: View {
             }
         } icon: {
             icon
+        }
+    }
+
+    /// Tag rows have no icon — they'd all be the same tag glyph anyway.
+    @ViewBuilder
+    private func tagRow(text: String, count: Int) -> some View {
+        HStack(spacing: 6) {
+            Text(verbatim: text)
+            Spacer(minLength: 4)
+            if count > 0 {
+                CountBadge(count: count)
+            }
         }
     }
 
