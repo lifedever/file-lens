@@ -2,7 +2,7 @@ import SwiftUI
 import SwiftData
 
 enum SidebarSelection: Hashable {
-    case workspace(UUID)        // not selectable directly — header/marker
+    case workspace(UUID)
     case tag(workspaceID: UUID, name: String)
     case uncategorized(workspaceID: UUID)
     case trashed(workspaceID: UUID)
@@ -13,6 +13,8 @@ struct SidebarView: View {
     @Binding var selection: SidebarSelection?
     @Binding var selectedWorkspace: Workspace?
     let onAddFolder: () -> Void
+    let onNewRule: () -> Void
+    let onEditRule: (Rule) -> Void
 
     var body: some View {
         List(selection: $selection) {
@@ -41,12 +43,24 @@ struct SidebarView: View {
 
             if let ws = selectedWorkspace {
                 Section("Tags") {
-                    ForEach(tags(for: ws), id: \.self) { tag in
-                        let count = filesCount(for: ws, tag: tag)
-                        Label("\(tag)", systemImage: "tag")
-                            .badge(count)
-                            .tag(SidebarSelection.tag(workspaceID: ws.id, name: tag) as SidebarSelection?)
+                    ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
+                        Label(rule.name, systemImage: "tag")
+                            .badge(filesCount(for: ws, tag: rule.name))
+                            .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name) as SidebarSelection?)
+                            .opacity(rule.enabled ? 1.0 : 0.5)
+                            .contextMenu {
+                                Button("Edit Rule…") { onEditRule(rule) }
+                                Button(rule.enabled ? "Disable" : "Enable") {
+                                    rule.enabled.toggle()
+                                }
+                            }
                     }
+                    Button {
+                        onNewRule()
+                    } label: {
+                        Label("New Rule…", systemImage: "plus")
+                    }
+                    .buttonStyle(.plain)
                 }
                 Section("System") {
                     Label("Uncategorized", systemImage: "questionmark.circle")
@@ -59,14 +73,6 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
-    }
-
-    private func tags(for ws: Workspace) -> [String] {
-        var names = Set<String>()
-        for f in ws.files where f.isPresent {
-            for t in f.tags { names.insert(t.name) }
-        }
-        return names.sorted()
     }
 
     private func filesCount(for ws: Workspace, tag: String) -> Int {

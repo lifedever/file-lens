@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		0D10997452F00B1B358DF73A /* Condition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1510856F65B2DAA3CF91E5A6 /* Condition.swift */; };
 		0DF93577F854A421F8EBC0A4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8437296A7FAD343066127C37 /* Assets.xcassets */; };
+		1B45C965EDEFC84DB5F55369 /* RuleEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3153193915FCBA0517AF4887 /* RuleEditorView.swift */; };
 		24153E22EB4BB69873FCC33F /* BuiltInRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */; };
 		27EA6563D268529E3DE5CD7C /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D7449A803044E4695A562D /* InspectorView.swift */; };
 		2C7AA149CB06286CD4BBEA37 /* FileTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3054ED561401B7D6A12CF88 /* FileTableView.swift */; };
@@ -61,6 +62,7 @@
 		2827FC740B9A4FB3B0E74B77 /* Rule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rule.swift; sourceTree = "<group>"; };
 		29D9EE51C43125F951439935 /* WorkspaceCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceCoordinator.swift; sourceTree = "<group>"; };
 		2C513FEF737C67F9A8A01313 /* FileNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNode.swift; sourceTree = "<group>"; };
+		3153193915FCBA0517AF4887 /* RuleEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleEditorView.swift; sourceTree = "<group>"; };
 		34A26BCAF8F3F34B7F601299 /* QuickLookCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickLookCoordinator.swift; sourceTree = "<group>"; };
 		44027E634235E1AD69EB2545 /* BookmarkStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStoreTests.swift; sourceTree = "<group>"; };
 		44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigration.swift; sourceTree = "<group>"; };
@@ -192,6 +194,7 @@
 				96D9E9F8EE0495017F38D06E /* FirstRunRulePicker.swift */,
 				5F5A619BA90CF8F861C2F42B /* GalleryView.swift */,
 				D6D7449A803044E4695A562D /* InspectorView.swift */,
+				3153193915FCBA0517AF4887 /* RuleEditorView.swift */,
 				5CAA54EFF677ED6497E10C6E /* SidebarView.swift */,
 			);
 			path = Views;
@@ -326,6 +329,7 @@
 				A75A67CD151F61F8D9DE1690 /* KindClassifier.swift in Sources */,
 				DD52D7BF0E733B1B36456D3A /* QuickLookCoordinator.swift in Sources */,
 				32B594F0525E9A0309B08E03 /* Rule.swift in Sources */,
+				1B45C965EDEFC84DB5F55369 /* RuleEditorView.swift in Sources */,
 				7ADD9E1B0CE9222D4E420415 /* RuleEngine.swift in Sources */,
 				64BB924545EC9CB42D0B24B5 /* SidebarView.swift in Sources */,
 				35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */,

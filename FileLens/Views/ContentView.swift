@@ -13,6 +13,7 @@ struct ContentView: View {
     @State private var pendingWorkspaceURL: URL?
     @State private var pendingRules: [Rule] = []
     @State private var showFirstRunPicker: Bool = false
+    @State private var editingRule: Rule?
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
@@ -21,7 +22,9 @@ struct ContentView: View {
             SidebarView(
                 selection: $selection,
                 selectedWorkspace: $selectedWorkspace,
-                onAddFolder: addFolder
+                onAddFolder: addFolder,
+                onNewRule: newRule,
+                onEditRule: { editingRule = $0 }
             )
             .frame(minWidth: 220)
         } detail: {
@@ -73,6 +76,28 @@ struct ContentView: View {
                     pendingWorkspaceURL = nil
                     pendingRules = []
                     showFirstRunPicker = false
+                }
+            )
+        }
+        .sheet(item: $editingRule) { rule in
+            RuleEditorView(
+                rule: rule,
+                onSave: {
+                    try? modelContext.save()
+                    editingRule = nil
+                    if let ws = selectedWorkspace {
+                        Task {
+                            let indexer = FileIndexer(container: modelContext.container)
+                            try? indexer.applyRules(workspace: ws)
+                            try? modelContext.save()
+                        }
+                    }
+                },
+                onCancel: { editingRule = nil },
+                onDelete: rule.isBuiltIn ? nil : {
+                    modelContext.delete(rule)
+                    try? modelContext.save()
+                    editingRule = nil
                 }
             )
         }
@@ -143,5 +168,16 @@ struct ContentView: View {
         pendingWorkspaceURL = nil
         pendingRules = []
         showFirstRunPicker = false
+    }
+
+    private func newRule() {
+        guard let ws = selectedWorkspace else { return }
+        let rule = Rule(name: "Untitled", color: "#3B82F6", enabled: true,
+                        priority: (ws.rules.map(\.priority).max() ?? 0) + 10,
+                        combinator: "any", isBuiltIn: false)
+        rule.conditions.append(Condition(field: "extension", op: "is", value: ""))
+        rule.workspace = ws
+        modelContext.insert(rule)
+        editingRule = rule
     }
 }
