@@ -24,6 +24,7 @@
 		A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7944B285B52C768330CAC0E /* FileTag.swift */; };
 		AD19DCBE9F9AA64562309D51 /* FolderWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8708E9405532B156A0EBAD32 /* FolderWatcher.swift */; };
 		B04E7A7D058FDAD42BC623F7 /* FileIndexerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86E07756A69CE1E2DE0EA3A7 /* FileIndexerTests.swift */; };
+		B3FABADE094A0DAB8751E53E /* ThumbnailService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1AC448360C870672CEE5E20A /* ThumbnailService.swift */; };
 		BB3ADF72F703933E87506D1B /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7918D2D372655629E017695D /* BookmarkStore.swift */; };
 		C5EFE5C7D1D2A585CD99FA0A /* KindClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */; };
 		CF08180DA757AEC2234843DF /* RuleEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6809B84FD4ECE32202A026DE /* RuleEngineTests.swift */; };
@@ -45,6 +46,7 @@
 /* Begin PBXFileReference section */
 		1510856F65B2DAA3CF91E5A6 /* Condition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Condition.swift; sourceTree = "<group>"; };
 		155A6BAEA16D45D6A694F583 /* StoreMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigrationTests.swift; sourceTree = "<group>"; };
+		1AC448360C870672CEE5E20A /* ThumbnailService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThumbnailService.swift; sourceTree = "<group>"; };
 		2827FC740B9A4FB3B0E74B77 /* Rule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rule.swift; sourceTree = "<group>"; };
 		2C513FEF737C67F9A8A01313 /* FileNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNode.swift; sourceTree = "<group>"; };
 		44027E634235E1AD69EB2545 /* BookmarkStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BookmarkStoreTests.swift; sourceTree = "<group>"; };
@@ -82,6 +84,7 @@
 				E3056F15ECF7AD4765009315 /* KindClassifier.swift */,
 				FD4B927888C55EEE3EF9DF42 /* RuleEngine.swift */,
 				44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */,
+				1AC448360C870672CEE5E20A /* ThumbnailService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -275,6 +278,7 @@
 				32B594F0525E9A0309B08E03 /* Rule.swift in Sources */,
 				7ADD9E1B0CE9222D4E420415 /* RuleEngine.swift in Sources */,
 				35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */,
+				B3FABADE094A0DAB8751E53E /* ThumbnailService.swift in Sources */,
 				97A7EC8B05EFDB6A1442B25B /* Workspace.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
