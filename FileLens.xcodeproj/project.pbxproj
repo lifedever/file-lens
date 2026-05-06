@@ -10,6 +10,7 @@
 		0D10997452F00B1B358DF73A /* Condition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1510856F65B2DAA3CF91E5A6 /* Condition.swift */; };
 		0DF93577F854A421F8EBC0A4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8437296A7FAD343066127C37 /* Assets.xcassets */; };
 		24153E22EB4BB69873FCC33F /* BuiltInRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */; };
+		2C7AA149CB06286CD4BBEA37 /* FileTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3054ED561401B7D6A12CF88 /* FileTableView.swift */; };
 		32B594F0525E9A0309B08E03 /* Rule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2827FC740B9A4FB3B0E74B77 /* Rule.swift */; };
 		35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */; };
 		3B7E2D948A572E047D57CB2C /* BuiltInRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AEB13FCE438EAB13CF95CFF /* BuiltInRulesTests.swift */; };
@@ -76,6 +77,7 @@
 		B799D07B0CA5F7C128D52050 /* ConditionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionEvaluator.swift; sourceTree = "<group>"; };
 		D502659659F1157BF93A606B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D512404F714AB5C047E39035 /* FileIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIndexer.swift; sourceTree = "<group>"; };
+		E3054ED561401B7D6A12CF88 /* FileTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTableView.swift; sourceTree = "<group>"; };
 		E3056F15ECF7AD4765009315 /* KindClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifier.swift; sourceTree = "<group>"; };
 		EAEEC2CDC7A283F82157D107 /* FileLensTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FileLensTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8CC5E93498888D920C8825F /* FileLens.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FileLens.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -174,6 +176,7 @@
 				D502659659F1157BF93A606B /* ContentView.swift */,
 				916AD25C5BE879DF69AE58DE /* EmptyStateView.swift */,
 				9BDFC79CD7F350521E290383 /* FileGridView.swift */,
+				E3054ED561401B7D6A12CF88 /* FileTableView.swift */,
 				5CAA54EFF677ED6497E10C6E /* SidebarView.swift */,
 			);
 			path = Views;
@@ -298,6 +301,7 @@
 				E4CEAF3C49D444C42335A4B3 /* FileIndexer.swift in Sources */,
 				D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */,
 				3DBBF690170053F76C83D62A /* FileNode.swift in Sources */,
+				2C7AA149CB06286CD4BBEA37 /* FileTableView.swift in Sources */,
 				A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */,
 				AD19DCBE9F9AA64562309D51 /* FolderWatcher.swift in Sources */,
 				A75A67CD151F61F8D9DE1690 /* KindClassifier.swift in Sources */,

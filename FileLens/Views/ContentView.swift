@@ -1,10 +1,13 @@
 import SwiftUI
 import SwiftData
 
+enum ViewMode: Int { case grid = 1, list = 2, gallery = 4 }
+
 struct ContentView: View {
     @State private var selectedWorkspace: Workspace?
     @State private var selection: SidebarSelection?
     @State private var coordinator: WorkspaceCoordinator?
+    @State private var viewMode: ViewMode = .grid
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
@@ -20,8 +23,25 @@ struct ContentView: View {
             if workspaces.isEmpty {
                 EmptyStateView(onAddFolder: addFolder)
             } else if let ws = selectedWorkspace {
-                FileGridView(files: filesForCurrentSelection(workspace: ws))
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                let files = filesForCurrentSelection(workspace: ws)
+                Group {
+                    switch viewMode {
+                    case .grid:    FileGridView(files: files)
+                    case .list:    FileTableView(files: files)
+                    case .gallery: FileGridView(files: files)  // Task 19 swaps this to GalleryView
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .toolbar {
+                    ToolbarItemGroup(placement: .primaryAction) {
+                        Picker("View", selection: $viewMode) {
+                            Image(systemName: "square.grid.2x2").tag(ViewMode.grid)
+                            Image(systemName: "list.bullet").tag(ViewMode.list)
+                            Image(systemName: "rectangle.grid.1x2").tag(ViewMode.gallery)
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
             } else {
                 Text("Select a workspace from the sidebar")
                     .foregroundStyle(.secondary)
@@ -29,6 +49,13 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .background(
+            Group {
+                Button("Grid")    { viewMode = .grid    }.keyboardShortcut("1", modifiers: .command).hidden()
+                Button("List")    { viewMode = .list    }.keyboardShortcut("2", modifiers: .command).hidden()
+                Button("Gallery") { viewMode = .gallery }.keyboardShortcut("4", modifiers: .command).hidden()
+            }
+        )
         .task {
             if coordinator == nil {
                 coordinator = WorkspaceCoordinator(container: modelContext.container)
