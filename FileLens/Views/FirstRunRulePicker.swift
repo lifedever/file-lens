@@ -20,17 +20,33 @@ struct FirstRunRulePicker: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            List {
-                ForEach(rules, id: \.id) { r in
-                    Toggle(r.name, isOn: Binding(
-                        get: { enabled.contains(r.id) },
-                        set: { isOn in
-                            if isOn { enabled.insert(r.id) } else { enabled.remove(r.id) }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(rules, id: \.id) { r in
+                        Toggle(isOn: Binding(
+                            get: { enabled.contains(r.id) },
+                            set: { isOn in
+                                if isOn { enabled.insert(r.id) } else { enabled.remove(r.id) }
+                            }
+                        )) {
+                            Text(LocalizedStringKey(r.name))
                         }
-                    ))
+                        .toggleStyle(.checkbox)
+                        .padding(.vertical, 2)
+                    }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 4)
             }
             .frame(minHeight: 320)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(nsColor: .textBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(nsColor: .separatorColor))
+            )
 
             HStack {
                 Spacer()

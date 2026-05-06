@@ -49,7 +49,7 @@ private struct FlowTags: View {
         let columns = [GridItem(.adaptive(minimum: 60, maximum: 160), spacing: 4)]
         LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
             ForEach(tags, id: \.self) { t in
-                Text(t)
+                Text(LocalizedStringKey(t))
                     .font(.caption)
                     .padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.15), in: Capsule())

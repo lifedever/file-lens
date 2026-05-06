@@ -44,7 +44,11 @@ struct SidebarView: View {
             if let ws = selectedWorkspace {
                 Section("Tags") {
                     ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
-                        Label(rule.name, systemImage: "tag")
+                        Label {
+                            Text(LocalizedStringKey(rule.name))
+                        } icon: {
+                            Image(systemName: "tag")
+                        }
                             .badge(filesCount(for: ws, tag: rule.name))
                             .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name) as SidebarSelection?)
                             .opacity(rule.enabled ? 1.0 : 0.5)

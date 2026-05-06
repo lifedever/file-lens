@@ -2,6 +2,97 @@
   "sourceLanguage" : "en",
   "version" : "1.0",
   "strings" : {
+    "Installers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Installers" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安装包" } }
+      }
+    },
+    "Images" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Images" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "图片" } }
+      }
+    },
+    "Videos" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Videos" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "视频" } }
+      }
+    },
+    "Audio" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Audio" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "音频" } }
+      }
+    },
+    "PDF" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "PDF" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "PDF" } }
+      }
+    },
+    "Documents" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Documents" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文档" } }
+      }
+    },
+    "Archives" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Archives" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "压缩包" } }
+      }
+    },
+    "Code" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Code" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "代码" } }
+      }
+    },
+    "Screenshots" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Screenshots" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "截图" } }
+      }
+    },
+    "Large files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Large files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "大文件" } }
+      }
+    },
+    "New arrivals" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "New arrivals" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新加入" } }
+      }
+    },
+    "Stale" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stale" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "长期未动" } }
+      }
+    },
+    "Downloading" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloading" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载中" } }
+      }
+    },
     "Add Folder" : {
       "extractionState" : "manual",
       "localizations" : {
