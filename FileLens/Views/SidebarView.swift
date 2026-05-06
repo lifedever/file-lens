@@ -15,8 +15,6 @@ struct SidebarView: View {
     @Query(sort: \Workspace.createdAt) private var workspaces: [Workspace]
     @Binding var selection: SidebarSelection?
     @Binding var selectedWorkspace: Workspace?
-    let onAddFolder: () -> Void
-    let onNewRule: () -> Void
     let onEditRule: (Rule) -> Void
     let onDeleteRule: (Rule) -> Void
 
@@ -49,22 +47,8 @@ struct SidebarView: View {
                         }
                     }
 
-                    // New Rule footer link — plain tappable row, no Button
-                    // wrapper (Button inside List(selection:) renders an
-                    // intrusive blue highlight). listRowBackground/separator
-                    // suppress any row chrome the list would add.
-                    HStack(spacing: 6) {
-                        symbolIcon("plus").foregroundStyle(.secondary)
-                        Text("New Rule…").foregroundStyle(.secondary)
-                            .font(.caption)
-                        Spacer()
-                    }
-                    .contentShape(Rectangle())
-                    .onTapGesture { onNewRule() }
-                    .listRowBackground(Color.clear)
-                    .listRowSeparator(.hidden)
-
-                    // Visual breathing room before System rows
+                    // Visual breathing room before System rows.
+                    // (New Rule lives in the macOS File menu now: ⌘N)
                     Color.clear.frame(height: 6).listRowSeparator(.hidden)
 
                     // System rows
@@ -92,14 +76,6 @@ struct SidebarView: View {
                 .tag(SidebarSelection.workspace(ws.id))
             }
 
-            HStack(spacing: 6) {
-                symbolIcon("plus").foregroundStyle(.secondary)
-                Text("Add Folder…").foregroundStyle(.secondary)
-                Spacer()
-            }
-            .contentShape(Rectangle())
-            .onTapGesture { onAddFolder() }
-            .listRowBackground(Color.clear)
         }
         .listStyle(.sidebar)
         .onChange(of: selection) { _, sel in

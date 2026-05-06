@@ -25,6 +25,7 @@ struct FileLensApp: App {
                 .onAppear { applyPersistedAppearance() }
         }
         .modelContainer(container)
+        .commands { FileLensCommands() }
 
         Settings {
             SettingsView()

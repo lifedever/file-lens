@@ -35,8 +35,6 @@ struct ContentView: View {
             SidebarView(
                 selection: $selection,
                 selectedWorkspace: $selectedWorkspace,
-                onAddFolder: addFolder,
-                onNewRule: newRule,
                 onEditRule: { editingRule = $0 },
                 onDeleteRule: { rule in
                     modelContext.delete(rule)
@@ -174,12 +172,13 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedFile) { _, newFile in
-            // Respect the user's setting; off by default. Selecting a file
-            // doesn't pop the inspector unless the user opted in.
             if autoExpandInspector, newFile != nil {
                 showInspector = true
             }
         }
+        // Publish actions to the macOS menu bar (File → Add Folder…, New Rule…)
+        .focusedValue(\.addFolderAction, addFolder)
+        .focusedValue(\.newRuleAction, newRule)
     }
 
     private func filesForCurrentSelection(workspace ws: Workspace) -> [FileNode] {
