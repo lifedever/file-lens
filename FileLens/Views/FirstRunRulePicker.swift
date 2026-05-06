@@ -21,7 +21,7 @@ struct FirstRunRulePicker: View {
                 .foregroundStyle(.secondary)
 
             List {
-                ForEach(rules) { r in
+                ForEach(rules, id: \.id) { r in
                     Toggle(r.name, isOn: Binding(
                         get: { enabled.contains(r.id) },
                         set: { isOn in
