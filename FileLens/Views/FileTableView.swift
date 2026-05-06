@@ -43,6 +43,11 @@ struct FileTableView: View {
             if let id = selection.first, let f = files.first(where: { $0.id == id }) {
                 Button("Reveal in Finder") { FileActions.reveal(f) }
                 Button("Open With Default App") { FileActions.open(f) }
+                Button("Quick Look") {
+                    if let url = FileActions.url(for: f) {
+                        QuickLookCoordinator.shared.show(urls: [url])
+                    }
+                }
                 Divider()
                 Button("Move to Trash", role: .destructive) {
                     FileActions.moveToTrash(f, modelContext: modelContext)

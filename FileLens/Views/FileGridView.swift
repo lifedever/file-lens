@@ -18,9 +18,19 @@ struct FileGridView: View {
                             await loadThumb(for: file)
                         }
                         .onTapGesture(count: 2) { FileActions.open(file) }
+                        .onDrag {
+                            let url = FileActions.url(for: file).map { $0 as NSURL } ?? NSURL()
+                            return NSItemProvider(object: url)
+                        }
                         .contextMenu {
                             Button("Reveal in Finder") { FileActions.reveal(file) }
                             Button("Open With Default App") { FileActions.open(file) }
+                            Button("Quick Look") {
+                                if let url = FileActions.url(for: file) {
+                                    QuickLookCoordinator.shared.show(urls: [url])
+                                }
+                            }
+                            .keyboardShortcut(" ", modifiers: [])
                             Divider()
                             Button("Move to Trash", role: .destructive) {
                                 FileActions.moveToTrash(file, modelContext: modelContext)
