@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		0DF93577F854A421F8EBC0A4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8437296A7FAD343066127C37 /* Assets.xcassets */; };
+		35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */; };
+		634BA646758DCC9EA0AC3887 /* StoreMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 155A6BAEA16D45D6A694F583 /* StoreMigrationTests.swift */; };
 		82C50720487DE41E2F1EA732 /* SmokeTest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80614E329F6887741C6CD472 /* SmokeTest.swift */; };
 		D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA075B7637F930149C6308 /* FileLensApp.swift */; };
 /* End PBXBuildFile section */
@@ -23,6 +25,8 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		155A6BAEA16D45D6A694F583 /* StoreMigrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigrationTests.swift; sourceTree = "<group>"; };
+		44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigration.swift; sourceTree = "<group>"; };
 		80614E329F6887741C6CD472 /* SmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTest.swift; sourceTree = "<group>"; };
 		8437296A7FAD343066127C37 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B4DA075B7637F930149C6308 /* FileLensApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLensApp.swift; sourceTree = "<group>"; };
@@ -31,10 +35,19 @@
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		0BC6AB81DDA190D1F80B47A9 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
 		1F05A322587529E129E8CB85 /* FileLensTests */ = {
 			isa = PBXGroup;
 			children = (
 				80614E329F6887741C6CD472 /* SmokeTest.swift */,
+				155A6BAEA16D45D6A694F583 /* StoreMigrationTests.swift */,
 			);
 			path = FileLensTests;
 			sourceTree = "<group>";
@@ -65,6 +78,7 @@
 			children = (
 				B4DA075B7637F930149C6308 /* FileLensApp.swift */,
 				B26E36B9103988EF28C5AD93 /* Resources */,
+				0BC6AB81DDA190D1F80B47A9 /* Services */,
 			);
 			path = FileLens;
 			sourceTree = "<group>";
@@ -172,6 +186,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				82C50720487DE41E2F1EA732 /* SmokeTest.swift in Sources */,
+				634BA646758DCC9EA0AC3887 /* StoreMigrationTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -180,6 +195,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */,
+				35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
