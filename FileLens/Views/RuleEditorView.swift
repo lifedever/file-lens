@@ -2,76 +2,135 @@ import SwiftUI
 
 struct RuleEditorView: View {
     @Bindable var rule: Rule
+    let isNewRule: Bool
     let onSave: () -> Void
     let onCancel: () -> Void
-    let onDelete: (() -> Void)?  // nil for built-ins
+    let onDelete: () -> Void
+
+    @State private var confirmingDelete = false
+
+    private var titleKey: LocalizedStringKey {
+        if isNewRule          { return "New rule" }
+        if rule.isBuiltIn     { return "Edit built-in rule" }
+        return "Edit rule"
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(rule.isBuiltIn ? "Edit built-in rule" : (onDelete == nil ? "New rule" : "Edit rule"))
+        VStack(alignment: .leading, spacing: 0) {
+            // Title
+            Text(titleKey)
                 .font(.title3.bold())
-
-            HStack {
-                Text("Name")
-                if rule.isBuiltIn {
-                    // Built-in rules have a canonical English key in storage that
-                    // TagDisplay translates everywhere. Don't let the user mutate
-                    // it, or the localization mapping breaks. Show the translated
-                    // name as read-only.
-                    Text(verbatim: TagDisplay.localizedName(rule.name))
-                        .padding(.leading, 6)
-                        .foregroundStyle(.primary)
-                    Spacer()
-                } else {
-                    TextField("Rule name", text: $rule.name)
-                }
-            }
-
-            HStack {
-                Text("Match")
-                Picker("", selection: $rule.combinator) {
-                    Text("All conditions").tag("all")
-                    Text("Any condition").tag("any")
-                }
-                .frame(width: 180)
-                Spacer()
-                Toggle("Enabled", isOn: $rule.enabled)
-            }
+                .padding(.horizontal, 24)
+                .padding(.top, 22)
+                .padding(.bottom, 16)
 
             Divider()
 
-            Text("Conditions").font(.headline)
-
-            ForEach(rule.conditions) { cnd in
-                ConditionRow(condition: cnd, onRemove: {
-                    if let i = rule.conditions.firstIndex(where: { $0.id == cnd.id }) {
-                        rule.conditions.remove(at: i)
+            // Form-style fields
+            VStack(alignment: .leading, spacing: 14) {
+                LabeledRow(label: "Name") {
+                    if rule.isBuiltIn {
+                        // Built-in rule names are i18n keys; don't let users mutate
+                        // them or the localization mapping breaks.
+                        Text(verbatim: TagDisplay.localizedName(rule.name))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                    } else {
+                        TextField("Rule name", text: $rule.name)
+                            .textFieldStyle(.roundedBorder)
                     }
-                })
-            }
-
-            Button {
-                rule.conditions.append(Condition(field: "extension", op: "is", value: ""))
-            } label: {
-                Label("Add Condition", systemImage: "plus.circle")
-            }
-
-            Spacer()
-
-            HStack {
-                if let onDelete, !rule.isBuiltIn {
-                    Button("Delete", role: .destructive, action: onDelete)
                 }
+
+                LabeledRow(label: "Match") {
+                    Picker("", selection: $rule.combinator) {
+                        Text("All conditions").tag("all")
+                        Text("Any condition").tag("any")
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                    Spacer()
+                    Toggle("Enabled", isOn: $rule.enabled)
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+
+            Divider()
+
+            // Conditions section
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Conditions").font(.headline)
+                    Spacer()
+                    Button {
+                        rule.conditions.append(Condition(field: "extension", op: "is", value: ""))
+                    } label: {
+                        Label("Add Condition", systemImage: "plus.circle")
+                            .labelStyle(.titleAndIcon)
+                    }
+                    .buttonStyle(.borderless)
+                }
+
+                ForEach(rule.conditions) { cnd in
+                    ConditionRow(condition: cnd, onRemove: {
+                        if let i = rule.conditions.firstIndex(where: { $0.id == cnd.id }) {
+                            rule.conditions.remove(at: i)
+                        }
+                    })
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 18)
+
+            Spacer(minLength: 0)
+            Divider()
+
+            // Footer
+            HStack {
+                Button("Delete", role: .destructive) {
+                    confirmingDelete = true
+                }
+                .disabled(isNewRule)  // nothing to delete for a draft
+
                 Spacer()
                 Button("Cancel", action: onCancel)
                     .keyboardShortcut(.cancelAction)
-                Button("Save", action: onSave)
-                    .keyboardShortcut(.defaultAction)
-                    .buttonStyle(.borderedProminent)
+                Button(isNewRule ? "Add Rule" : "Save") {
+                    onSave()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
             }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 14)
         }
-        .padding(20)
-        .frame(width: 520, height: 480)
+        .frame(width: 560, height: 460)
+        .confirmationDialog(
+            "delete.confirm.title",
+            isPresented: $confirmingDelete,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Rule", role: .destructive) {
+                onDelete()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("delete.confirm.message")
+        }
+    }
+}
+
+private struct LabeledRow<Content: View>: View {
+    let label: LocalizedStringKey
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Text(label)
+                .frame(width: 64, alignment: .trailing)
+                .foregroundStyle(.secondary)
+            content()
+        }
     }
 }
 
@@ -88,20 +147,26 @@ private struct ConditionRow: View {
                 Text("Date Added").tag("dateAdded")
                 Text("Kind").tag("kind")
             }
+            .labelsHidden()
             .frame(width: 110)
 
             Picker("", selection: $condition.op) {
                 ForEach(opsFor(condition.field), id: \.0) { (key, label) in
-                    Text(verbatim: NSLocalizedString(label, value: label, comment: "Condition operator label"))
+                    Text(verbatim: NSLocalizedString(label, value: label, comment: ""))
                         .tag(key)
                 }
             }
-            .frame(width: 130)
+            .labelsHidden()
+            .frame(width: 150)
 
             TextField("value", text: $condition.value)
+                .textFieldStyle(.roundedBorder)
 
-            Button(action: onRemove) { Image(systemName: "minus.circle") }
-                .buttonStyle(.plain)
+            Button(action: onRemove) {
+                Image(systemName: "minus.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
         }
     }
 

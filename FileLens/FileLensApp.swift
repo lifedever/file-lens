@@ -22,5 +22,10 @@ struct FileLensApp: App {
             ContentView()
         }
         .modelContainer(container)
+
+        Settings {
+            SettingsView()
+        }
+        .modelContainer(container)
     }
 }

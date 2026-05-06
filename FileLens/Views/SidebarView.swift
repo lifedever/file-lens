@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 enum SidebarSelection: Hashable {
     case workspace(UUID)
@@ -15,36 +16,48 @@ struct SidebarView: View {
     let onAddFolder: () -> Void
     let onNewRule: () -> Void
     let onEditRule: (Rule) -> Void
+    let onDeleteRule: (Rule) -> Void
 
     @State private var collapsed: Set<UUID> = []
+    @State private var ruleToDelete: Rule?
 
     var body: some View {
         List(selection: $selection) {
             ForEach(workspaces) { ws in
                 Section {
                     if !collapsed.contains(ws.id) {
-                        // "All files" row for the workspace
+                        // "All files" — selecting the workspace itself
                         Label {
                             Text("All files")
                         } icon: {
-                            Image(systemName: "folder")
-                                .foregroundStyle(.tint)
+                            Image(nsImage: workspaceIcon(for: ws))
+                                .resizable().interpolation(.high)
+                                .frame(width: 18, height: 18)
                         }
                         .badge(ws.files.filter { $0.isPresent }.count)
                         .tag(SidebarSelection.workspace(ws.id))
 
-                        // Tag rows
+                        // User rules → tag rows
                         ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
-                            Label(TagDisplay.localizedName(rule.name), systemImage: "tag")
-                                .badge(filesCount(for: ws, tag: rule.name))
-                                .opacity(rule.enabled ? 1.0 : 0.5)
-                                .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
-                                .contextMenu {
-                                    Button("Edit Rule…") { onEditRule(rule) }
-                                    Button(rule.enabled ? "Disable" : "Enable") {
-                                        rule.enabled.toggle()
-                                    }
+                            Label {
+                                Text(verbatim: TagDisplay.localizedName(rule.name))
+                            } icon: {
+                                Image(systemName: "tag.fill")
+                                    .foregroundStyle(.tint)
+                            }
+                            .badge(filesCount(for: ws, tag: rule.name))
+                            .opacity(rule.enabled ? 1.0 : 0.5)
+                            .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
+                            .contextMenu {
+                                Button("Edit Rule…") { onEditRule(rule) }
+                                Button(rule.enabled ? "Disable" : "Enable") {
+                                    rule.enabled.toggle()
                                 }
+                                Divider()
+                                Button("Delete Rule", role: .destructive) {
+                                    ruleToDelete = rule
+                                }
+                            }
                         }
 
                         Button {
@@ -55,14 +68,28 @@ struct SidebarView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // System rows
-                        Label("Uncategorized", systemImage: "questionmark.circle")
-                            .badge(uncategorizedCount(for: ws))
-                            .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
+                        // Visual separator before the System rows
+                        Color.clear.frame(height: 8)
+                            .listRowSeparator(.hidden)
 
-                        Label("Trashed", systemImage: "trash")
-                            .badge(trashedCount(for: ws))
-                            .tag(SidebarSelection.trashed(workspaceID: ws.id))
+                        // System rows
+                        Label {
+                            Text("Uncategorized")
+                        } icon: {
+                            Image(systemName: "questionmark.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .badge(uncategorizedCount(for: ws))
+                        .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
+
+                        Label {
+                            Text("Trashed")
+                        } icon: {
+                            Image(systemName: "trash")
+                                .foregroundStyle(.secondary)
+                        }
+                        .badge(trashedCount(for: ws))
+                        .tag(SidebarSelection.trashed(workspaceID: ws.id))
                     }
                 } header: {
                     workspaceSectionHeader(ws)
@@ -95,7 +122,32 @@ struct SidebarView: View {
                 break
             }
         }
+        .confirmationDialog(
+            "delete.confirm.title",
+            isPresented: Binding(
+                get: { ruleToDelete != nil },
+                set: { if !$0 { ruleToDelete = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: ruleToDelete
+        ) { rule in
+            Button("Delete Rule", role: .destructive) {
+                onDeleteRule(rule)
+                ruleToDelete = nil
+            }
+            Button("Cancel", role: .cancel) {
+                ruleToDelete = nil
+            }
+        } message: { rule in
+            Text(verbatim: String(format:
+                NSLocalizedString("delete.confirm.message.format",
+                    value: "Files keep any other tags. The “%@” rule will be removed from this workspace.",
+                    comment: ""),
+                TagDisplay.localizedName(rule.name)))
+        }
     }
+
+    // MARK: Workspace section header (collapsible folder row)
 
     @ViewBuilder
     private func workspaceSectionHeader(_ ws: Workspace) -> some View {
@@ -103,14 +155,16 @@ struct SidebarView: View {
         HStack(spacing: 6) {
             Image(systemName: "chevron.right")
                 .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                .font(.caption2.weight(.semibold))
+                .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
-            Image(systemName: "folder.fill")
-                .foregroundStyle(.tint)
-                .font(.caption)
+                .frame(width: 12)
+            Image(nsImage: workspaceIcon(for: ws))
+                .resizable().interpolation(.high)
+                .frame(width: 20, height: 20)
             Text(ws.name)
-                .font(.subheadline.bold())
+                .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
+                .lineLimit(1)
             Spacer()
         }
         .contentShape(Rectangle())
@@ -118,7 +172,18 @@ struct SidebarView: View {
             if isCollapsed { collapsed.remove(ws.id) }
             else           { collapsed.insert(ws.id) }
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
+        .textCase(nil)  // override List sidebar's automatic uppercasing
+    }
+
+    // MARK: Helpers
+
+    private func workspaceIcon(for ws: Workspace) -> NSImage {
+        if FileManager.default.fileExists(atPath: ws.folderPath) {
+            return NSWorkspace.shared.icon(forFile: ws.folderPath)
+        }
+        // Fallback: generic folder icon
+        return NSWorkspace.shared.icon(for: .folder)
     }
 
     private func filesCount(for ws: Workspace, tag: String) -> Int {

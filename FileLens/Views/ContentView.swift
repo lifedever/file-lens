@@ -21,6 +21,10 @@ struct ContentView: View {
     @State private var showInspector: Bool = false
     @State private var pendingWorkspace: PendingWorkspace?
     @State private var editingRule: Rule?
+    /// A freshly-created Rule that hasn't been inserted into the ModelContext yet.
+    /// Set by `newRule()` and committed on Save inside the sheet. Lets us drop
+    /// the draft on Cancel without leaving an orphan.
+    @State private var pendingNewRule: Rule?
     @State private var searchText: String = ""
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
@@ -32,7 +36,12 @@ struct ContentView: View {
                 selectedWorkspace: $selectedWorkspace,
                 onAddFolder: addFolder,
                 onNewRule: newRule,
-                onEditRule: { editingRule = $0 }
+                onEditRule: { editingRule = $0 },
+                onDeleteRule: { rule in
+                    modelContext.delete(rule)
+                    try? modelContext.save()
+                    reapplyRulesIfNeeded()
+                }
             )
             .frame(minWidth: 220)
         } detail: {
@@ -105,21 +114,32 @@ struct ContentView: View {
         .sheet(item: $editingRule) { rule in
             RuleEditorView(
                 rule: rule,
+                isNewRule: pendingNewRule?.id == rule.id,
                 onSave: {
+                    if let pending = pendingNewRule, pending.id == rule.id,
+                       let ws = selectedWorkspace {
+                        // Commit the draft rule into the context now.
+                        rule.workspace = ws
+                        modelContext.insert(rule)
+                        for cond in rule.conditions { modelContext.insert(cond) }
+                        pendingNewRule = nil
+                    }
                     try? modelContext.save()
                     editingRule = nil
-                    if let ws = selectedWorkspace {
-                        Task {
-                            let indexer = FileIndexer(container: modelContext.container)
-                            try? indexer.applyRules(workspace: ws)
-                            try? modelContext.save()
-                        }
-                    }
+                    reapplyRulesIfNeeded()
                 },
-                onCancel: { editingRule = nil },
-                onDelete: rule.isBuiltIn ? nil : {
-                    modelContext.delete(rule)
-                    try? modelContext.save()
+                onCancel: {
+                    // Drop the draft entirely; nothing was inserted.
+                    pendingNewRule = nil
+                    editingRule = nil
+                },
+                onDelete: {
+                    if pendingNewRule?.id != rule.id {
+                        modelContext.delete(rule)
+                        try? modelContext.save()
+                        reapplyRulesIfNeeded()
+                    }
+                    pendingNewRule = nil
                     editingRule = nil
                 }
             )
@@ -207,13 +227,29 @@ struct ContentView: View {
 
     private func newRule() {
         guard let ws = selectedWorkspace else { return }
-        let rule = Rule(name: "Untitled", color: "#3B82F6", enabled: true,
-                        priority: (ws.rules.map(\.priority).max() ?? 0) + 10,
-                        combinator: "any", isBuiltIn: false)
-        rule.conditions.append(Condition(field: "extension", op: "is", value: ""))
-        rule.workspace = ws
-        modelContext.insert(rule)
-        editingRule = rule
+        // Build a draft Rule but don't insert into the ModelContext yet —
+        // RuleEditorView's Save handler does the insert. Cancel just drops
+        // the draft so we don't leave orphans behind.
+        let draft = Rule(
+            name: NSLocalizedString("Untitled", value: "Untitled", comment: ""),
+            color: "#3B82F6",
+            enabled: true,
+            priority: (ws.rules.map(\.priority).max() ?? 0) + 10,
+            combinator: "any",
+            isBuiltIn: false
+        )
+        draft.conditions.append(Condition(field: "extension", op: "is", value: ""))
+        pendingNewRule = draft
+        editingRule = draft
+    }
+
+    private func reapplyRulesIfNeeded() {
+        guard let ws = selectedWorkspace else { return }
+        Task {
+            let indexer = FileIndexer(container: modelContext.container)
+            try? indexer.applyRules(workspace: ws)
+            try? modelContext.save()
+        }
     }
 
     private func quickLookSelected() {

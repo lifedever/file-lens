@@ -443,6 +443,83 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "晚于" } }
       }
     },
+    "Delete Rule" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Rule" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "删除规则" } }
+      }
+    },
+    "Add Rule" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Add Rule" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加规则" } }
+      }
+    },
+    "delete.confirm.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete this rule?" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "确定删除这条规则吗？" } }
+      }
+    },
+    "delete.confirm.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Files keep any other tags they have. The rule will be removed from this workspace." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件本身的其他标签会保留，但这条规则会从当前工作区移除。" } }
+      }
+    },
+    "delete.confirm.message.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Files keep any other tags. The “%@” rule will be removed from this workspace." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件的其他标签保留，「%@」规则会从当前工作区移除。" } }
+      }
+    },
+    "General" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "General" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "通用" } }
+      }
+    },
+    "About" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "About" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "关于" } }
+      }
+    },
+    "Auto-expand inspector when selecting a file" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Auto-expand inspector when selecting a file" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "选中文件时自动展开右侧详情栏" } }
+      }
+    },
+    "about.tagline" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A non-destructive view layer for any folder.\nFiles stay where they are." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "为任何文件夹加一层非破坏性的标签视图。\n文件本身从不被移动。" } }
+      }
+    },
+    "Disable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Disable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "禁用" } }
+      }
+    },
+    "Enable" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enable" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "启用" } }
+      }
+    },
     "Rule name" : {
       "extractionState" : "manual",
       "localizations" : {

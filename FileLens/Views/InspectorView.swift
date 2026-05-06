@@ -73,14 +73,58 @@ struct InspectorView: View {
 private struct FlowTags: View {
     let tags: [String]
     var body: some View {
-        let columns = [GridItem(.adaptive(minimum: 60, maximum: 160), spacing: 4)]
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
+        FlowLayout(spacing: 6) {
             ForEach(tags, id: \.self) { t in
                 Text(verbatim: TagDisplay.localizedName(t))
                     .font(.caption)
-                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .padding(.horizontal, 8).padding(.vertical, 3)
                     .background(Color.accentColor.opacity(0.15), in: Capsule())
             }
+        }
+    }
+}
+
+/// True wrapping HStack for tag chips. Each chip takes only the width it needs;
+/// chips wrap to the next line when the row overflows.
+private struct FlowLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var totalHeight: CGFloat = 0
+        var rowWidth: CGFloat = 0
+        var rowHeight: CGFloat = 0
+
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if rowWidth > 0, rowWidth + spacing + size.width > maxWidth {
+                totalHeight += rowHeight + spacing
+                rowWidth = size.width
+                rowHeight = size.height
+            } else {
+                rowWidth += (rowWidth > 0 ? spacing : 0) + size.width
+                rowHeight = max(rowHeight, size.height)
+            }
+        }
+        totalHeight += rowHeight
+        return CGSize(width: maxWidth.isFinite ? maxWidth : rowWidth, height: totalHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x: CGFloat = bounds.minX
+        var y: CGFloat = bounds.minY
+        var rowHeight: CGFloat = 0
+
+        for sub in subviews {
+            let size = sub.sizeThatFits(.unspecified)
+            if x > bounds.minX, x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + spacing
+                rowHeight = 0
+            }
+            sub.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
         }
     }
 }
