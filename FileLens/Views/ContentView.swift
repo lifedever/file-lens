@@ -20,7 +20,7 @@ struct ContentView: View {
             if workspaces.isEmpty {
                 EmptyStateView(onAddFolder: addFolder)
             } else if let ws = selectedWorkspace {
-                Text("Workspace: \(ws.name) — \(ws.files.filter { $0.isPresent }.count) files")
+                FileGridView(files: filesForCurrentSelection(workspace: ws))
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Text("Select a workspace from the sidebar")
@@ -39,6 +39,23 @@ struct ContentView: View {
                 if let ws { await coordinator?.activate(workspace: ws) }
                 else      { await coordinator?.deactivate() }
             }
+        }
+    }
+
+    private func filesForCurrentSelection(workspace ws: Workspace) -> [FileNode] {
+        let present = ws.files.filter { $0.isPresent }
+        switch selection {
+        case .tag(_, let name):
+            return present.filter { $0.tags.contains(where: { $0.name == name }) }
+                .sorted { $0.dateAdded > $1.dateAdded }
+        case .uncategorized:
+            return present.filter { $0.tags.isEmpty }
+                .sorted { $0.dateAdded > $1.dateAdded }
+        case .trashed:
+            return ws.files.filter { !$0.isPresent }
+                .sorted { $0.dateAdded > $1.dateAdded }
+        default:
+            return present.sorted { $0.dateAdded > $1.dateAdded }
         }
     }
 
