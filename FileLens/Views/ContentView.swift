@@ -25,6 +25,7 @@ struct ContentView: View {
     /// Set by `newRule()` and committed on Save inside the sheet. Lets us drop
     /// the draft on Cancel without leaving an orphan.
     @State private var pendingNewRule: Rule?
+    @AppStorage("filelens.autoExpandInspector") private var autoExpandInspector: Bool = false
     @State private var searchText: String = ""
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
@@ -87,9 +88,10 @@ struct ContentView: View {
                         Button {
                             showInspector.toggle()
                         } label: {
-                            Image(systemName: "sidebar.right")
+                            Image(systemName: showInspector ? "info.circle.fill" : "info.circle")
                         }
                         .keyboardShortcut("i", modifiers: .command)
+                        .help("Show Info  ⌘I")
                     }
                 }
             } else {
@@ -172,7 +174,11 @@ struct ContentView: View {
             }
         }
         .onChange(of: selectedFile) { _, newFile in
-            if newFile != nil { showInspector = true }
+            // Respect the user's setting; off by default. Selecting a file
+            // doesn't pop the inspector unless the user opted in.
+            if autoExpandInspector, newFile != nil {
+                showInspector = true
+            }
         }
     }
 

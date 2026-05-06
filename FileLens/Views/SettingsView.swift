@@ -54,7 +54,7 @@ struct SettingsView: View {
 private struct GeneralSettingsView: View {
     @AppStorage("filelens.appearance") private var appearanceRaw: String = AppearancePreference.system.rawValue
     @AppStorage("filelens.language") private var languageRaw: String = LanguagePreference.system.rawValue
-    @AppStorage("filelens.autoExpandInspector") private var autoExpandInspector: Bool = true
+    @AppStorage("filelens.autoExpandInspector") private var autoExpandInspector: Bool = false
 
     @State private var showingLanguageRestartAlert = false
 
