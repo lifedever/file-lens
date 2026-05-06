@@ -324,6 +324,139 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更早" } }
       }
     },
+    "All files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "All files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "全部文件" } }
+      }
+    },
+    "Open" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开" } }
+      }
+    },
+    "Untitled" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Untitled" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "未命名" } }
+      }
+    },
+    "is" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "is" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "等于" } }
+      }
+    },
+    "is any of" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "is any of" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "属于其一" } }
+      }
+    },
+    "is not" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "is not" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不等于" } }
+      }
+    },
+    "contains" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "contains" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "包含" } }
+      }
+    },
+    "matches regex" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "matches regex" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "匹配正则" } }
+      }
+    },
+    "starts with" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "starts with" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以...开头" } }
+      }
+    },
+    "ends with" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "ends with" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "以...结尾" } }
+      }
+    },
+    "greater than" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "greater than" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "大于" } }
+      }
+    },
+    "less than" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "less than" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "小于" } }
+      }
+    },
+    "between" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "between" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "介于" } }
+      }
+    },
+    "in the last N days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "in the last N days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "最近 N 天内" } }
+      }
+    },
+    "not in the last N days" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "not in the last N days" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "不在最近 N 天内" } }
+      }
+    },
+    "before" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "before" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "早于" } }
+      }
+    },
+    "after" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "after" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "晚于" } }
+      }
+    },
+    "Rule name" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rule name" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "规则名称" } }
+      }
+    },
+    "value" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "value" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "值" } }
+      }
+    },
     "Installers" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -742,20 +875,6 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "View" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "视图" } }
-      }
-    },
-    "Rule name" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "Rule name" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "规则名称" } }
-      }
-    },
-    "value" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "en" : { "stringUnit" : { "state" : "translated", "value" : "value" } },
-        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "值" } }
       }
     },
     "Extension" : {

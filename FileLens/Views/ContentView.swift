@@ -181,7 +181,7 @@ struct ContentView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.prompt = "Add Folder"
+        panel.prompt = NSLocalizedString("Add Folder", value: "Add Folder", comment: "")
         guard panel.runModal() == .OK, let url = panel.url else { return }
         pendingWorkspace = PendingWorkspace(url: url, rules: BuiltInRules.all())
     }

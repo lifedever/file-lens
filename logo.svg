@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#60A5FA"/>
+      <stop offset="100%" stop-color="#1E40AF"/>
+    </linearGradient>
+    <linearGradient id="lens" x1="0" y1="0" x2="0.4" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E5E7EB"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1E40AF"/>
+      <stop offset="100%" stop-color="#1E3A8A"/>
+    </linearGradient>
+    <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="20" stdDeviation="22" flood-opacity="0.3"/>
+    </filter>
+    <filter id="lensShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Rounded background -->
+  <rect x="100" y="100" width="824" height="824" rx="185" ry="185" fill="url(#bg)"/>
+
+  <!-- Subtle highlight along the top of the rounded background -->
+  <rect x="100" y="100" width="824" height="200" rx="185" ry="185"
+        fill="white" opacity="0.08"/>
+
+  <!-- Magnifying glass -->
+  <g filter="url(#shadow)">
+    <!-- Handle (rotated 45° around lens center 440,440) -->
+    <g transform="rotate(45 440 440)">
+      <rect x="690" y="406" width="220" height="68" rx="34" fill="url(#frame)"/>
+    </g>
+
+    <!-- Lens body -->
+    <circle cx="440" cy="440" r="266" fill="url(#lens)" stroke="url(#frame)" stroke-width="42"/>
+  </g>
+
+  <!-- Three tag pills inside the lens — mirrors the rule colors -->
+  <g transform="translate(440 440)" filter="url(#lensShadow)">
+    <!-- Tag 1: Installers blue -->
+    <rect x="-138" y="-92" width="248" height="48" rx="24" fill="#3B82F6"/>
+    <circle cx="-114" cy="-68" r="9" fill="white" opacity="0.85"/>
+
+    <!-- Tag 2: Images green (slightly shorter, offset right) -->
+    <rect x="-118" y="-22" width="200" height="48" rx="24" fill="#10B981"/>
+    <circle cx="-94" cy="2" r="9" fill="white" opacity="0.85"/>
+
+    <!-- Tag 3: Screenshots pink/orange -->
+    <rect x="-138" y="48" width="226" height="48" rx="24" fill="#F59E0B"/>
+    <circle cx="-114" cy="72" r="9" fill="white" opacity="0.85"/>
+  </g>
+</svg>

@@ -13,7 +13,18 @@ struct RuleEditorView: View {
 
             HStack {
                 Text("Name")
-                TextField("Rule name", text: $rule.name)
+                if rule.isBuiltIn {
+                    // Built-in rules have a canonical English key in storage that
+                    // TagDisplay translates everywhere. Don't let the user mutate
+                    // it, or the localization mapping breaks. Show the translated
+                    // name as read-only.
+                    Text(verbatim: TagDisplay.localizedName(rule.name))
+                        .padding(.leading, 6)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                } else {
+                    TextField("Rule name", text: $rule.name)
+                }
             }
 
             HStack {
@@ -81,7 +92,8 @@ private struct ConditionRow: View {
 
             Picker("", selection: $condition.op) {
                 ForEach(opsFor(condition.field), id: \.0) { (key, label) in
-                    Text(label).tag(key)
+                    Text(verbatim: NSLocalizedString(label, value: label, comment: "Condition operator label"))
+                        .tag(key)
                 }
             }
             .frame(width: 130)
