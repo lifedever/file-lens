@@ -10,6 +10,9 @@ struct ContentView: View {
     @State private var viewMode: ViewMode = .grid
     @State private var selectedFile: FileNode?
     @State private var showInspector: Bool = false
+    @State private var pendingWorkspaceURL: URL?
+    @State private var pendingRules: [Rule] = []
+    @State private var showFirstRunPicker: Bool = false
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
@@ -62,6 +65,17 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .sheet(isPresented: $showFirstRunPicker) {
+            FirstRunRulePicker(
+                rules: pendingRules,
+                onConfirm: commitWorkspace,
+                onCancel: {
+                    pendingWorkspaceURL = nil
+                    pendingRules = []
+                    showFirstRunPicker = false
+                }
+            )
+        }
         .background(
             Group {
                 Button("Grid")    { viewMode = .grid    }.keyboardShortcut("1", modifiers: .command).hidden()
@@ -106,12 +120,18 @@ struct ContentView: View {
         panel.allowsMultipleSelection = false
         panel.prompt = "Add Folder"
         guard panel.runModal() == .OK, let url = panel.url else { return }
+        pendingWorkspaceURL = url
+        pendingRules = BuiltInRules.all()
+        showFirstRunPicker = true
+    }
 
+    private func commitWorkspace(enabledRuleIDs: Set<UUID>) {
+        guard let url = pendingWorkspaceURL else { return }
         do {
             let bookmark = try BookmarkStore.makeBookmark(for: url)
             let ws = Workspace(name: url.lastPathComponent, folderPath: url.path, bookmarkData: bookmark)
             modelContext.insert(ws)
-            for rule in BuiltInRules.all() {
+            for rule in pendingRules where enabledRuleIDs.contains(rule.id) {
                 rule.workspace = ws
                 modelContext.insert(rule)
             }
@@ -120,5 +140,8 @@ struct ContentView: View {
         } catch {
             NSAlert(error: error).runModal()
         }
+        pendingWorkspaceURL = nil
+        pendingRules = []
+        showFirstRunPicker = false
     }
 }

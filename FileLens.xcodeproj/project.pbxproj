@@ -37,6 +37,7 @@
 		C5EFE5C7D1D2A585CD99FA0A /* KindClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */; };
 		CF08180DA757AEC2234843DF /* RuleEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6809B84FD4ECE32202A026DE /* RuleEngineTests.swift */; };
 		D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA075B7637F930149C6308 /* FileLensApp.swift */; };
+		DBB9CA0E93E04B970FCCC733 /* FirstRunRulePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96D9E9F8EE0495017F38D06E /* FirstRunRulePicker.swift */; };
 		DD52D7BF0E733B1B36456D3A /* QuickLookCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 34A26BCAF8F3F34B7F601299 /* QuickLookCoordinator.swift */; };
 		E4CEAF3C49D444C42335A4B3 /* FileIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D512404F714AB5C047E39035 /* FileIndexer.swift */; };
 		F090A71C8D9ED6D527B6ACC7 /* ConditionEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B799D07B0CA5F7C128D52050 /* ConditionEvaluator.swift */; };
@@ -76,6 +77,7 @@
 		8708E9405532B156A0EBAD32 /* FolderWatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderWatcher.swift; sourceTree = "<group>"; };
 		8AEB13FCE438EAB13CF95CFF /* BuiltInRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltInRulesTests.swift; sourceTree = "<group>"; };
 		916AD25C5BE879DF69AE58DE /* EmptyStateView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyStateView.swift; sourceTree = "<group>"; };
+		96D9E9F8EE0495017F38D06E /* FirstRunRulePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunRulePicker.swift; sourceTree = "<group>"; };
 		9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifierTests.swift; sourceTree = "<group>"; };
 		9BDFC79CD7F350521E290383 /* FileGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileGridView.swift; sourceTree = "<group>"; };
 		A7944B285B52C768330CAC0E /* FileTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTag.swift; sourceTree = "<group>"; };
@@ -187,6 +189,7 @@
 				916AD25C5BE879DF69AE58DE /* EmptyStateView.swift */,
 				9BDFC79CD7F350521E290383 /* FileGridView.swift */,
 				E3054ED561401B7D6A12CF88 /* FileTableView.swift */,
+				96D9E9F8EE0495017F38D06E /* FirstRunRulePicker.swift */,
 				5F5A619BA90CF8F861C2F42B /* GalleryView.swift */,
 				D6D7449A803044E4695A562D /* InspectorView.swift */,
 				5CAA54EFF677ED6497E10C6E /* SidebarView.swift */,
@@ -316,6 +319,7 @@
 				3DBBF690170053F76C83D62A /* FileNode.swift in Sources */,
 				2C7AA149CB06286CD4BBEA37 /* FileTableView.swift in Sources */,
 				A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */,
+				DBB9CA0E93E04B970FCCC733 /* FirstRunRulePicker.swift in Sources */,
 				AD19DCBE9F9AA64562309D51 /* FolderWatcher.swift in Sources */,
 				82A727A8C0376D61E1BDD342 /* GalleryView.swift in Sources */,
 				27EA6563D268529E3DE5CD7C /* InspectorView.swift in Sources */,
