@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var pendingRules: [Rule] = []
     @State private var showFirstRunPicker: Bool = false
     @State private var editingRule: Rule?
+    @State private var searchText: String = ""
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
@@ -40,6 +41,7 @@ struct ContentView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .searchable(text: $searchText, placement: .toolbar)
                 .inspector(isPresented: $showInspector) {
                     InspectorView(file: selectedFile)
                         .inspectorColumnWidth(min: 220, ideal: 280, max: 400)
@@ -122,20 +124,24 @@ struct ContentView: View {
     }
 
     private func filesForCurrentSelection(workspace ws: Workspace) -> [FileNode] {
+        let base: [FileNode]
         let present = ws.files.filter { $0.isPresent }
         switch selection {
         case .tag(_, let name):
-            return present.filter { $0.tags.contains(where: { $0.name == name }) }
-                .sorted { $0.dateAdded > $1.dateAdded }
+            base = present.filter { $0.tags.contains(where: { $0.name == name }) }
         case .uncategorized:
-            return present.filter { $0.tags.isEmpty }
-                .sorted { $0.dateAdded > $1.dateAdded }
+            base = present.filter { $0.tags.isEmpty }
         case .trashed:
-            return ws.files.filter { !$0.isPresent }
-                .sorted { $0.dateAdded > $1.dateAdded }
+            base = ws.files.filter { !$0.isPresent }
         default:
-            return present.sorted { $0.dateAdded > $1.dateAdded }
+            base = present
         }
+
+        let filtered = searchText.isEmpty
+            ? base
+            : base.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+
+        return filtered.sorted { $0.dateAdded > $1.dateAdded }
     }
 
     private func addFolder() {
