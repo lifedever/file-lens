@@ -3,6 +3,7 @@ import SwiftData
 
 struct ContentView: View {
     @State private var selectedWorkspace: Workspace?
+    @State private var coordinator: WorkspaceCoordinator?
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
@@ -13,8 +14,8 @@ struct ContentView: View {
         } detail: {
             if workspaces.isEmpty {
                 EmptyStateView(onAddFolder: addFolder)
-            } else if let _ = selectedWorkspace {
-                Text("File area placeholder")
+            } else if let ws = selectedWorkspace {
+                Text("Workspace: \(ws.name) — \(ws.files.filter { $0.isPresent }.count) files")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 Text("Select a workspace from the sidebar")
@@ -23,6 +24,17 @@ struct ContentView: View {
             }
         }
         .frame(minWidth: 900, minHeight: 600)
+        .task {
+            if coordinator == nil {
+                coordinator = WorkspaceCoordinator(container: modelContext.container)
+            }
+        }
+        .onChange(of: selectedWorkspace) { _, ws in
+            Task {
+                if let ws { await coordinator?.activate(workspace: ws) }
+                else      { await coordinator?.deactivate() }
+            }
+        }
     }
 
     private func addFolder() {
