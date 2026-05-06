@@ -4,6 +4,7 @@ import AppKit
 
 struct FileGridView: View {
     let files: [FileNode]
+    @Binding var selectedFile: FileNode?
     @State private var thumbs: [UUID: NSImage] = [:]
     @Environment(\.modelContext) private var modelContext
 
@@ -13,11 +14,12 @@ struct FileGridView: View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(files) { file in
-                    FileGridItem(file: file, image: thumbs[file.id])
+                    FileGridItem(file: file, image: thumbs[file.id], isSelected: file.id == selectedFile?.id)
                         .task(id: file.id) {
                             await loadThumb(for: file)
                         }
                         .onTapGesture(count: 2) { FileActions.open(file) }
+                        .onTapGesture(count: 1) { selectedFile = file }
                         .onDrag {
                             let url = FileActions.url(for: file).map { $0 as NSURL } ?? NSURL()
                             return NSItemProvider(object: url)
@@ -56,6 +58,7 @@ struct FileGridView: View {
 private struct FileGridItem: View {
     let file: FileNode
     let image: NSImage?
+    let isSelected: Bool
 
     var body: some View {
         VStack(spacing: 6) {
@@ -76,6 +79,10 @@ private struct FileGridItem: View {
                 .frame(maxWidth: 130)
         }
         .padding(6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : .clear)
+        )
     }
 
     private func kindIcon(_ k: String) -> String {

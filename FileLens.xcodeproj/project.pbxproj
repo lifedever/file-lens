@@ -10,6 +10,7 @@
 		0D10997452F00B1B358DF73A /* Condition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1510856F65B2DAA3CF91E5A6 /* Condition.swift */; };
 		0DF93577F854A421F8EBC0A4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8437296A7FAD343066127C37 /* Assets.xcassets */; };
 		24153E22EB4BB69873FCC33F /* BuiltInRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */; };
+		27EA6563D268529E3DE5CD7C /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D7449A803044E4695A562D /* InspectorView.swift */; };
 		2C7AA149CB06286CD4BBEA37 /* FileTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3054ED561401B7D6A12CF88 /* FileTableView.swift */; };
 		32B594F0525E9A0309B08E03 /* Rule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2827FC740B9A4FB3B0E74B77 /* Rule.swift */; };
 		35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */; };
@@ -83,6 +84,7 @@
 		B799D07B0CA5F7C128D52050 /* ConditionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionEvaluator.swift; sourceTree = "<group>"; };
 		D502659659F1157BF93A606B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D512404F714AB5C047E39035 /* FileIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIndexer.swift; sourceTree = "<group>"; };
+		D6D7449A803044E4695A562D /* InspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InspectorView.swift; sourceTree = "<group>"; };
 		E3054ED561401B7D6A12CF88 /* FileTableView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTableView.swift; sourceTree = "<group>"; };
 		E3056F15ECF7AD4765009315 /* KindClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifier.swift; sourceTree = "<group>"; };
 		EAEEC2CDC7A283F82157D107 /* FileLensTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FileLensTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -186,6 +188,7 @@
 				9BDFC79CD7F350521E290383 /* FileGridView.swift */,
 				E3054ED561401B7D6A12CF88 /* FileTableView.swift */,
 				5F5A619BA90CF8F861C2F42B /* GalleryView.swift */,
+				D6D7449A803044E4695A562D /* InspectorView.swift */,
 				5CAA54EFF677ED6497E10C6E /* SidebarView.swift */,
 			);
 			path = Views;
@@ -315,6 +318,7 @@
 				A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */,
 				AD19DCBE9F9AA64562309D51 /* FolderWatcher.swift in Sources */,
 				82A727A8C0376D61E1BDD342 /* GalleryView.swift in Sources */,
+				27EA6563D268529E3DE5CD7C /* InspectorView.swift in Sources */,
 				A75A67CD151F61F8D9DE1690 /* KindClassifier.swift in Sources */,
 				DD52D7BF0E733B1B36456D3A /* QuickLookCoordinator.swift in Sources */,
 				32B594F0525E9A0309B08E03 /* Rule.swift in Sources */,

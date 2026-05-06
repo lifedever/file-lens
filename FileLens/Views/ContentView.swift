@@ -8,6 +8,8 @@ struct ContentView: View {
     @State private var selection: SidebarSelection?
     @State private var coordinator: WorkspaceCoordinator?
     @State private var viewMode: ViewMode = .grid
+    @State private var selectedFile: FileNode?
+    @State private var showInspector: Bool = false
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
 
@@ -26,12 +28,16 @@ struct ContentView: View {
                 let files = filesForCurrentSelection(workspace: ws)
                 Group {
                     switch viewMode {
-                    case .grid:    FileGridView(files: files)
+                    case .grid:    FileGridView(files: files, selectedFile: $selectedFile)
                     case .list:    FileTableView(files: files)
                     case .gallery: GalleryView(files: files)
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .inspector(isPresented: $showInspector) {
+                    InspectorView(file: selectedFile)
+                        .inspectorColumnWidth(min: 220, ideal: 280, max: 400)
+                }
                 .toolbar {
                     ToolbarItemGroup(placement: .primaryAction) {
                         Picker("View", selection: $viewMode) {
@@ -40,6 +46,13 @@ struct ContentView: View {
                             Image(systemName: "rectangle.grid.1x2").tag(ViewMode.gallery)
                         }
                         .pickerStyle(.segmented)
+                        Spacer()
+                        Button {
+                            showInspector.toggle()
+                        } label: {
+                            Image(systemName: "sidebar.right")
+                        }
+                        .keyboardShortcut("i", modifiers: .command)
                     }
                 }
             } else {
