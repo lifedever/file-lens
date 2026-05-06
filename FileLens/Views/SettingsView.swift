@@ -46,7 +46,8 @@ struct SettingsView: View {
             AboutSettingsView()
                 .tabItem { Label("About", systemImage: "info.circle") }
         }
-        .frame(minWidth: 460)
+        .frame(width: 420)
+        .fixedSize(horizontal: false, vertical: true)
     }
 }
 
@@ -85,8 +86,7 @@ private struct GeneralSettingsView: View {
             Toggle("Auto-expand inspector when selecting a file", isOn: $autoExpandInspector)
         }
         .formStyle(.grouped)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
+        .scrollDisabled(true)
         .fixedSize(horizontal: false, vertical: true)
         .alert("language.restart.title", isPresented: $showingLanguageRestartAlert) {
             Button("Cancel", role: .cancel) {}

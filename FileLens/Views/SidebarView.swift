@@ -26,84 +26,80 @@ struct SidebarView: View {
     var body: some View {
         List(selection: $selection) {
             ForEach(workspaces) { ws in
-                Section {
-                    if !collapsed.contains(ws.id) {
-                        // "All files" — pick the workspace itself
-                        rowLabel(
-                            text: Text("All files"),
-                            count: ws.files.filter { $0.isPresent }.count,
-                            icon: AnyView(folderIcon(for: ws))
-                        )
-                        .tag(SidebarSelection.workspace(ws.id))
+                DisclosureGroup(isExpanded: expansionBinding(for: ws.id)) {
+                    // Children render indented automatically by DisclosureGroup.
 
-                        // User rules → tag rows
-                        ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
-                            rowLabel(
-                                text: Text(verbatim: TagDisplay.localizedName(rule.name)),
-                                count: filesCount(for: ws, tag: rule.name),
-                                icon: AnyView(symbolIcon("tag.fill").foregroundStyle(.tint))
-                            )
-                            .opacity(rule.enabled ? 1.0 : 0.5)
-                            .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
-                            .contextMenu {
-                                Button("Edit Rule…") { onEditRule(rule) }
-                                Button(rule.enabled ? "Disable" : "Enable") {
-                                    rule.enabled.toggle()
-                                }
-                                Divider()
-                                Button("Delete Rule", role: .destructive) {
-                                    ruleToDelete = rule
-                                }
+                    // Tag rows
+                    ForEach(ws.rules.sorted(by: { $0.priority < $1.priority })) { rule in
+                        rowLabel(
+                            text: TagDisplay.localizedName(rule.name),
+                            count: filesCount(for: ws, tag: rule.name),
+                            icon: AnyView(symbolIcon("tag.fill").foregroundStyle(.tint))
+                        )
+                        .opacity(rule.enabled ? 1.0 : 0.5)
+                        .tag(SidebarSelection.tag(workspaceID: ws.id, name: rule.name))
+                        .contextMenu {
+                            Button("Edit Rule…") { onEditRule(rule) }
+                            Button(rule.enabled ? "Disable" : "Enable") {
+                                rule.enabled.toggle()
+                            }
+                            Divider()
+                            Button("Delete Rule", role: .destructive) {
+                                ruleToDelete = rule
                             }
                         }
-
-                        Button {
-                            onNewRule()
-                        } label: {
-                            Label {
-                                Text("New Rule…").foregroundStyle(.secondary)
-                            } icon: {
-                                symbolIcon("plus").foregroundStyle(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-
-                        // Visual separator before System rows
-                        Color.clear.frame(height: 6)
-                            .listRowSeparator(.hidden)
-
-                        // System rows
-                        rowLabel(
-                            text: Text("Uncategorized"),
-                            count: uncategorizedCount(for: ws),
-                            icon: AnyView(symbolIcon("questionmark.circle").foregroundStyle(.secondary))
-                        )
-                        .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
-
-                        rowLabel(
-                            text: Text("Trashed"),
-                            count: trashedCount(for: ws),
-                            icon: AnyView(symbolIcon("trash").foregroundStyle(.secondary))
-                        )
-                        .tag(SidebarSelection.trashed(workspaceID: ws.id))
                     }
-                } header: {
-                    workspaceSectionHeader(ws)
-                }
-            }
 
-            Section {
-                Button {
-                    onAddFolder()
+                    // New Rule button (not selectable)
+                    Button {
+                        onNewRule()
+                    } label: {
+                        Label {
+                            Text("New Rule…").foregroundStyle(.secondary)
+                        } icon: {
+                            symbolIcon("plus").foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    // Visual breathing room before System rows
+                    Color.clear.frame(height: 6).listRowSeparator(.hidden)
+
+                    // System rows
+                    rowLabel(
+                        text: NSLocalizedString("Uncategorized", value: "Uncategorized", comment: ""),
+                        count: uncategorizedCount(for: ws),
+                        icon: AnyView(symbolIcon("questionmark.circle").foregroundStyle(.secondary))
+                    )
+                    .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
+
+                    rowLabel(
+                        text: NSLocalizedString("Trashed", value: "Trashed", comment: ""),
+                        count: trashedCount(for: ws),
+                        icon: AnyView(symbolIcon("trash").foregroundStyle(.secondary))
+                    )
+                    .tag(SidebarSelection.trashed(workspaceID: ws.id))
                 } label: {
-                    Label {
-                        Text("Add Folder…").foregroundStyle(.secondary)
-                    } icon: {
-                        symbolIcon("plus").foregroundStyle(.secondary)
-                    }
+                    rowLabel(
+                        text: ws.name,
+                        count: ws.files.filter { $0.isPresent }.count,
+                        icon: AnyView(folderIcon(for: ws)),
+                        bold: true
+                    )
                 }
-                .buttonStyle(.plain)
+                .tag(SidebarSelection.workspace(ws.id))
             }
+
+            Button {
+                onAddFolder()
+            } label: {
+                Label {
+                    Text("Add Folder…").foregroundStyle(.secondary)
+                } icon: {
+                    symbolIcon("plus").foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
         }
         .listStyle(.sidebar)
         .onChange(of: selection) { _, sel in
@@ -146,13 +142,17 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: Row label with custom count badge
+    // MARK: Row builder — uniform Label with optional bold + trailing CountBadge
 
     @ViewBuilder
-    private func rowLabel(text: Text, count: Int, icon: AnyView) -> some View {
+    private func rowLabel(text: String, count: Int, icon: AnyView, bold: Bool = false) -> some View {
         Label {
             HStack(spacing: 6) {
-                text
+                if bold {
+                    Text(verbatim: text).fontWeight(.semibold)
+                } else {
+                    Text(verbatim: text)
+                }
                 Spacer(minLength: 4)
                 if count > 0 {
                     CountBadge(count: count)
@@ -163,34 +163,7 @@ struct SidebarView: View {
         }
     }
 
-    // MARK: Workspace section header (collapsible folder row)
-
-    @ViewBuilder
-    private func workspaceSectionHeader(_ ws: Workspace) -> some View {
-        let isCollapsed = collapsed.contains(ws.id)
-        HStack(spacing: 6) {
-            Image(systemName: "chevron.right")
-                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                .font(.caption2.weight(.semibold))
-                .foregroundStyle(.secondary)
-                .frame(width: 10)
-            folderIcon(for: ws)
-            Text(ws.name)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-            Spacer()
-        }
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if isCollapsed { collapsed.remove(ws.id) }
-            else           { collapsed.insert(ws.id) }
-        }
-        .padding(.vertical, 2)
-        .textCase(nil)
-    }
-
-    // MARK: Icon builders — uniform 16px
+    // MARK: Icons
 
     private func folderIcon(for ws: Workspace) -> some View {
         let img: NSImage = {
@@ -210,6 +183,18 @@ struct SidebarView: View {
             .resizable()
             .scaledToFit()
             .frame(width: kIconSize, height: kIconSize)
+    }
+
+    // MARK: Expansion binding
+
+    private func expansionBinding(for id: UUID) -> Binding<Bool> {
+        Binding(
+            get: { !collapsed.contains(id) },
+            set: { isExpanded in
+                if isExpanded { collapsed.remove(id) }
+                else          { collapsed.insert(id) }
+            }
+        )
     }
 
     // MARK: counts
@@ -236,8 +221,6 @@ private struct CountBadge: View {
             .foregroundStyle(.secondary)
             .padding(.horizontal, 7)
             .padding(.vertical, 1)
-            .background(
-                Capsule().fill(Color.secondary.opacity(0.18))
-            )
+            .background(Capsule().fill(Color.secondary.opacity(0.18)))
     }
 }
