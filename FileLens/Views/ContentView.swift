@@ -129,6 +129,14 @@ struct ContentView: View {
                 Button("Grid")    { viewMode = .grid    }.keyboardShortcut("1", modifiers: .command).hidden()
                 Button("List")    { viewMode = .list    }.keyboardShortcut("2", modifiers: .command).hidden()
                 Button("Gallery") { viewMode = .gallery }.keyboardShortcut("4", modifiers: .command).hidden()
+                Button("Quick Look") { quickLookSelected() }
+                    .keyboardShortcut(.space, modifiers: [])
+                    .hidden()
+                Button("Open") {
+                    if let f = selectedFile { FileActions.open(f) }
+                }
+                .keyboardShortcut(.return, modifiers: .command)
+                .hidden()
             }
         )
         .task {
@@ -206,6 +214,11 @@ struct ContentView: View {
         rule.workspace = ws
         modelContext.insert(rule)
         editingRule = rule
+    }
+
+    private func quickLookSelected() {
+        guard let f = selectedFile, let url = FileActions.url(for: f) else { return }
+        QuickLookCoordinator.shared.show(urls: [url])
     }
 
     private var byteFormatter: ByteCountFormatter {

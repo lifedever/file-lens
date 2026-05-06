@@ -39,7 +39,11 @@ final class FolderWatcher {
                 kCFAllocatorDefault, callback, &ctx, pathsToWatch,
                 FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
                 0.2,  // 200ms system-level coalescing
-                FSEventStreamCreateFlags(kFSEventStreamCreateFlagFileEvents | kFSEventStreamCreateFlagNoDefer)
+                FSEventStreamCreateFlags(
+                    kFSEventStreamCreateFlagFileEvents
+                    | kFSEventStreamCreateFlagNoDefer
+                    | kFSEventStreamCreateFlagUseCFTypes  // paths is CFArray<CFString> — required for the unsafeBitCast below to be valid
+                )
             )
             self.stream = s
             FSEventStreamSetDispatchQueue(s!, .main)
