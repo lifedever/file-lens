@@ -22,10 +22,12 @@
 		A2F4C3BE46B4561CD3ED926C /* ConditionEvaluatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4BE5D538DBF09A954ADBE7 /* ConditionEvaluatorTests.swift */; };
 		A75A67CD151F61F8D9DE1690 /* KindClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3056F15ECF7AD4765009315 /* KindClassifier.swift */; };
 		A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7944B285B52C768330CAC0E /* FileTag.swift */; };
+		B04E7A7D058FDAD42BC623F7 /* FileIndexerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86E07756A69CE1E2DE0EA3A7 /* FileIndexerTests.swift */; };
 		BB3ADF72F703933E87506D1B /* BookmarkStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7918D2D372655629E017695D /* BookmarkStore.swift */; };
 		C5EFE5C7D1D2A585CD99FA0A /* KindClassifierTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */; };
 		CF08180DA757AEC2234843DF /* RuleEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6809B84FD4ECE32202A026DE /* RuleEngineTests.swift */; };
 		D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4DA075B7637F930149C6308 /* FileLensApp.swift */; };
+		E4CEAF3C49D444C42335A4B3 /* FileIndexer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D512404F714AB5C047E39035 /* FileIndexer.swift */; };
 		F090A71C8D9ED6D527B6ACC7 /* ConditionEvaluator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B799D07B0CA5F7C128D52050 /* ConditionEvaluator.swift */; };
 /* End PBXBuildFile section */
 
@@ -52,12 +54,14 @@
 		80614E329F6887741C6CD472 /* SmokeTest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SmokeTest.swift; sourceTree = "<group>"; };
 		81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltInRules.swift; sourceTree = "<group>"; };
 		8437296A7FAD343066127C37 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		86E07756A69CE1E2DE0EA3A7 /* FileIndexerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIndexerTests.swift; sourceTree = "<group>"; };
 		8AEB13FCE438EAB13CF95CFF /* BuiltInRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuiltInRulesTests.swift; sourceTree = "<group>"; };
 		9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifierTests.swift; sourceTree = "<group>"; };
 		A7944B285B52C768330CAC0E /* FileTag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTag.swift; sourceTree = "<group>"; };
 		AE4BE5D538DBF09A954ADBE7 /* ConditionEvaluatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionEvaluatorTests.swift; sourceTree = "<group>"; };
 		B4DA075B7637F930149C6308 /* FileLensApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileLensApp.swift; sourceTree = "<group>"; };
 		B799D07B0CA5F7C128D52050 /* ConditionEvaluator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConditionEvaluator.swift; sourceTree = "<group>"; };
+		D512404F714AB5C047E39035 /* FileIndexer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileIndexer.swift; sourceTree = "<group>"; };
 		E3056F15ECF7AD4765009315 /* KindClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifier.swift; sourceTree = "<group>"; };
 		EAEEC2CDC7A283F82157D107 /* FileLensTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FileLensTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F8CC5E93498888D920C8825F /* FileLens.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FileLens.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -71,6 +75,7 @@
 				7918D2D372655629E017695D /* BookmarkStore.swift */,
 				81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */,
 				B799D07B0CA5F7C128D52050 /* ConditionEvaluator.swift */,
+				D512404F714AB5C047E39035 /* FileIndexer.swift */,
 				E3056F15ECF7AD4765009315 /* KindClassifier.swift */,
 				FD4B927888C55EEE3EF9DF42 /* RuleEngine.swift */,
 				44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */,
@@ -84,6 +89,7 @@
 				44027E634235E1AD69EB2545 /* BookmarkStoreTests.swift */,
 				8AEB13FCE438EAB13CF95CFF /* BuiltInRulesTests.swift */,
 				AE4BE5D538DBF09A954ADBE7 /* ConditionEvaluatorTests.swift */,
+				86E07756A69CE1E2DE0EA3A7 /* FileIndexerTests.swift */,
 				9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */,
 				6809B84FD4ECE32202A026DE /* RuleEngineTests.swift */,
 				80614E329F6887741C6CD472 /* SmokeTest.swift */,
@@ -241,6 +247,7 @@
 				7261297FF3212D80CE7E8157 /* BookmarkStoreTests.swift in Sources */,
 				3B7E2D948A572E047D57CB2C /* BuiltInRulesTests.swift in Sources */,
 				A2F4C3BE46B4561CD3ED926C /* ConditionEvaluatorTests.swift in Sources */,
+				B04E7A7D058FDAD42BC623F7 /* FileIndexerTests.swift in Sources */,
 				C5EFE5C7D1D2A585CD99FA0A /* KindClassifierTests.swift in Sources */,
 				CF08180DA757AEC2234843DF /* RuleEngineTests.swift in Sources */,
 				82C50720487DE41E2F1EA732 /* SmokeTest.swift in Sources */,
@@ -256,6 +263,7 @@
 				24153E22EB4BB69873FCC33F /* BuiltInRules.swift in Sources */,
 				0D10997452F00B1B358DF73A /* Condition.swift in Sources */,
 				F090A71C8D9ED6D527B6ACC7 /* ConditionEvaluator.swift in Sources */,
+				E4CEAF3C49D444C42335A4B3 /* FileIndexer.swift in Sources */,
 				D178594FB848DD18F1559E49 /* FileLensApp.swift in Sources */,
 				3DBBF690170053F76C83D62A /* FileNode.swift in Sources */,
 				A861FBB846D01D8B9C50C561 /* FileTag.swift in Sources */,
