@@ -1,12 +1,6 @@
 import SwiftUI
 
 // MARK: - Focused-value plumbing
-//
-// SwiftUI commands (the macOS menu bar) can't directly call into a specific
-// View's state. The textbook pattern: the View publishes "actions" via
-// `.focusedValue(\.key, closure)`, and Commands reads them with
-// `@FocusedValue(\.key)`. When the focused window's view tree provides the
-// closure, the menu item is enabled and routes to it.
 
 private struct AddFolderActionKey: FocusedValueKey {
     typealias Value = () -> Void
@@ -16,6 +10,9 @@ private struct NewRuleActionKey: FocusedValueKey {
 }
 private struct CheckUpdateActionKey: FocusedValueKey {
     typealias Value = () -> Void
+}
+private struct ActiveWorkspaceNameKey: FocusedValueKey {
+    typealias Value = String
 }
 
 extension FocusedValues {
@@ -31,6 +28,13 @@ extension FocusedValues {
         get { self[CheckUpdateActionKey.self] }
         set { self[CheckUpdateActionKey.self] = newValue }
     }
+    /// Name of the workspace currently shown in the active window. nil means
+    /// no workspace is selected — workspace-scoped commands (e.g. New Rule)
+    /// should disable.
+    var activeWorkspaceName: String? {
+        get { self[ActiveWorkspaceNameKey.self] }
+        set { self[ActiveWorkspaceNameKey.self] = newValue }
+    }
 }
 
 // MARK: - Menu commands
@@ -39,10 +43,9 @@ struct FileLensCommands: Commands {
     @FocusedValue(\.addFolderAction) private var addFolder
     @FocusedValue(\.newRuleAction) private var newRule
     @FocusedValue(\.checkUpdateAction) private var checkUpdate
+    @FocusedValue(\.activeWorkspaceName) private var workspaceName
 
     var body: some Commands {
-        // File menu — append to the system "New" group so our items sit
-        // alongside macOS's standard new-window items.
         CommandGroup(after: .newItem) {
             Button {
                 addFolder?()
@@ -52,16 +55,26 @@ struct FileLensCommands: Commands {
             .keyboardShortcut("o", modifiers: [.command, .shift])
             .disabled(addFolder == nil)
 
+            // New Rule's label includes the workspace it'll be created in,
+            // so users can see at a glance where ⌘N will land. Disabled
+            // when no workspace is active, since rules can't exist
+            // detached from a workspace.
             Button {
                 newRule?()
             } label: {
-                Text("New Rule…")
+                if let name = workspaceName {
+                    Text(verbatim: String(format:
+                        NSLocalizedString("menu.newRuleIn.format",
+                            value: "New Rule in “%@”…",
+                            comment: ""), name))
+                } else {
+                    Text("New Rule…")
+                }
             }
             .keyboardShortcut("n", modifiers: .command)
-            .disabled(newRule == nil)
+            .disabled(newRule == nil || workspaceName == nil)
         }
 
-        // App menu — "Check for Updates…" near About.
         CommandGroup(after: .appInfo) {
             Button {
                 checkUpdate?()

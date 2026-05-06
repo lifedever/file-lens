@@ -179,6 +179,7 @@ struct ContentView: View {
         // Publish actions to the macOS menu bar (File → Add Folder…, New Rule…)
         .focusedValue(\.addFolderAction, addFolder)
         .focusedValue(\.newRuleAction, newRule)
+        .focusedValue(\.activeWorkspaceName, selectedWorkspace?.name)
     }
 
     private func filesForCurrentSelection(workspace ws: Workspace) -> [FileNode] {
