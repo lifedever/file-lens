@@ -15,6 +15,10 @@ struct FileLensApp: App {
         } catch {
             fatalError("Failed to init ModelContainer: \(error)")
         }
+
+        // Apply persisted appearance preference (Light/Dark/System) at launch.
+        let raw = UserDefaults.standard.string(forKey: "filelens.appearance") ?? AppearancePreference.system.rawValue
+        (AppearancePreference(rawValue: raw) ?? .system).apply()
     }
 
     var body: some Scene {

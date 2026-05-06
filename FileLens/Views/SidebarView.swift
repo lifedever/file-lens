@@ -9,6 +9,8 @@ enum SidebarSelection: Hashable {
     case trashed(workspaceID: UUID)
 }
 
+private let kIconSize: CGFloat = 16
+
 struct SidebarView: View {
     @Query(sort: \Workspace.createdAt) private var workspaces: [Workspace]
     @Binding var selection: SidebarSelection?
@@ -26,13 +28,11 @@ struct SidebarView: View {
             ForEach(workspaces) { ws in
                 Section {
                     if !collapsed.contains(ws.id) {
-                        // "All files" — selecting the workspace itself
+                        // "All files" — pick the workspace itself
                         Label {
                             Text("All files")
                         } icon: {
-                            Image(nsImage: workspaceIcon(for: ws))
-                                .resizable().interpolation(.high)
-                                .frame(width: 18, height: 18)
+                            folderIcon(for: ws)
                         }
                         .badge(ws.files.filter { $0.isPresent }.count)
                         .tag(SidebarSelection.workspace(ws.id))
@@ -42,8 +42,7 @@ struct SidebarView: View {
                             Label {
                                 Text(verbatim: TagDisplay.localizedName(rule.name))
                             } icon: {
-                                Image(systemName: "tag.fill")
-                                    .foregroundStyle(.tint)
+                                symbolIcon("tag.fill").foregroundStyle(.tint)
                             }
                             .badge(filesCount(for: ws, tag: rule.name))
                             .opacity(rule.enabled ? 1.0 : 0.5)
@@ -63,21 +62,23 @@ struct SidebarView: View {
                         Button {
                             onNewRule()
                         } label: {
-                            Label("New Rule…", systemImage: "plus")
-                                .foregroundStyle(.secondary)
+                            Label {
+                                Text("New Rule…").foregroundStyle(.secondary)
+                            } icon: {
+                                symbolIcon("plus").foregroundStyle(.secondary)
+                            }
                         }
                         .buttonStyle(.plain)
 
-                        // Visual separator before the System rows
-                        Color.clear.frame(height: 8)
+                        // Visual separator before System rows
+                        Color.clear.frame(height: 6)
                             .listRowSeparator(.hidden)
 
                         // System rows
                         Label {
                             Text("Uncategorized")
                         } icon: {
-                            Image(systemName: "questionmark.circle")
-                                .foregroundStyle(.secondary)
+                            symbolIcon("questionmark.circle").foregroundStyle(.secondary)
                         }
                         .badge(uncategorizedCount(for: ws))
                         .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
@@ -85,8 +86,7 @@ struct SidebarView: View {
                         Label {
                             Text("Trashed")
                         } icon: {
-                            Image(systemName: "trash")
-                                .foregroundStyle(.secondary)
+                            symbolIcon("trash").foregroundStyle(.secondary)
                         }
                         .badge(trashedCount(for: ws))
                         .tag(SidebarSelection.trashed(workspaceID: ws.id))
@@ -100,8 +100,11 @@ struct SidebarView: View {
                 Button {
                     onAddFolder()
                 } label: {
-                    Label("Add Folder…", systemImage: "plus")
-                        .foregroundStyle(.secondary)
+                    Label {
+                        Text("Add Folder…").foregroundStyle(.secondary)
+                    } icon: {
+                        symbolIcon("plus").foregroundStyle(.secondary)
+                    }
                 }
                 .buttonStyle(.plain)
             }
@@ -155,12 +158,10 @@ struct SidebarView: View {
         HStack(spacing: 6) {
             Image(systemName: "chevron.right")
                 .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                .font(.caption.weight(.semibold))
+                .font(.caption2.weight(.semibold))
                 .foregroundStyle(.secondary)
-                .frame(width: 12)
-            Image(nsImage: workspaceIcon(for: ws))
-                .resizable().interpolation(.high)
-                .frame(width: 20, height: 20)
+                .frame(width: 10)
+            folderIcon(for: ws)
             Text(ws.name)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.primary)
@@ -172,19 +173,34 @@ struct SidebarView: View {
             if isCollapsed { collapsed.remove(ws.id) }
             else           { collapsed.insert(ws.id) }
         }
-        .padding(.vertical, 3)
-        .textCase(nil)  // override List sidebar's automatic uppercasing
+        .padding(.vertical, 2)
+        .textCase(nil)
     }
 
-    // MARK: Helpers
+    // MARK: Icon builders — uniform 16px
 
-    private func workspaceIcon(for ws: Workspace) -> NSImage {
-        if FileManager.default.fileExists(atPath: ws.folderPath) {
-            return NSWorkspace.shared.icon(forFile: ws.folderPath)
-        }
-        // Fallback: generic folder icon
-        return NSWorkspace.shared.icon(for: .folder)
+    private func folderIcon(for ws: Workspace) -> some View {
+        let img: NSImage = {
+            if FileManager.default.fileExists(atPath: ws.folderPath) {
+                return NSWorkspace.shared.icon(forFile: ws.folderPath)
+            }
+            return NSWorkspace.shared.icon(for: .folder)
+        }()
+        return Image(nsImage: img)
+            .resizable()
+            .interpolation(.high)
+            .frame(width: kIconSize, height: kIconSize)
     }
+
+    /// Caller applies .foregroundStyle(...) to color the symbol.
+    private func symbolIcon(_ name: String) -> some View {
+        Image(systemName: name)
+            .resizable()
+            .scaledToFit()
+            .frame(width: kIconSize, height: kIconSize)
+    }
+
+    // MARK: counts
 
     private func filesCount(for ws: Workspace, tag: String) -> Int {
         ws.files.filter { f in f.isPresent && f.tags.contains(where: { $0.name == tag }) }.count
@@ -198,3 +214,4 @@ struct SidebarView: View {
         ws.files.filter { !$0.isPresent }.count
     }
 }
+
