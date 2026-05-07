@@ -19,7 +19,10 @@ set -euo pipefail
 
 APP_NAME="FileLens"
 BUNDLE_ID="com.lifedever.FileLens"
-REPO="lifedever/FileLens"
+REPO="lifedever/file-lens"
+# Gitee 镜像仓库 slug。Gitee 仓库名跟 GitHub 不一定一样;这里写死项目级配置,
+# 不污染 shell env(用户 ~/.zshrc 里只有跨项目共享的 GITEE_TOKEN 密钥)。
+GITEE_REPO="lifedever/file-lens"
 
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <version> [arch]" >&2
@@ -159,8 +162,56 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   echo "  https://github.com/${REPO}/releases/tag/${TAG}"
 fi
 
+# Gitee 镜像(国内下载快):仅依赖 GITEE_TOKEN env(跨项目共享的密钥),
+# 仓库名在脚本顶部已写死(项目级配置)。
+# 一次性设置:
+#   1. gitee.com 创建仓库 lifedever/file-lens
+#   2. git remote add gitee git@gitee.com:lifedever/file-lens.git
+#   3. 拿 Gitee Personal Access Token,加到 ~/.zshrc:
+#      export GITEE_TOKEN=xxx...
+GITEE_DMG_URL=""
+if [ -n "${GITEE_TOKEN:-}" ]; then
+  echo ""
+  echo "── Pushing to Gitee mirror (${GITEE_REPO}) ──"
+  if git remote get-url gitee >/dev/null 2>&1; then
+    (cd "${PROJECT_ROOT}" && git push gitee main 2>&1 | tail -3 || true)
+    (cd "${PROJECT_ROOT}" && git push gitee "${TAG}" 2>&1 | tail -3 || true)
+  fi
+  # 创建 Gitee Release(已存在就用现有的)
+  GITEE_RELEASE_RESP=$(curl -s -X POST \
+    "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases" \
+    -H "Content-Type: application/json" \
+    -d "{
+      \"access_token\": \"${GITEE_TOKEN}\",
+      \"tag_name\": \"${TAG}\",
+      \"name\": \"${APP_NAME} ${TAG}\",
+      \"body\": \"See https://github.com/${REPO}/releases/tag/${TAG}\",
+      \"target_commitish\": \"main\"
+    }")
+  GITEE_RELEASE_ID=$(echo "$GITEE_RELEASE_RESP" \
+    | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null \
+    || true)
+  if [ -n "${GITEE_RELEASE_ID}" ] && [ "${GITEE_RELEASE_ID}" != "None" ]; then
+    echo "  Uploading DMG to Gitee release ${GITEE_RELEASE_ID}..."
+    curl -s -X POST \
+      "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/${GITEE_RELEASE_ID}/attach_files" \
+      -H "Content-Type: multipart/form-data" \
+      -F "access_token=${GITEE_TOKEN}" \
+      -F "file=@${DMG_PATH}" > /dev/null
+    GITEE_DMG_URL="https://gitee.com/${GITEE_REPO}/releases/download/${TAG}/${APP_NAME}-${VERSION}-${ARCH}.dmg"
+    echo "  ${GITEE_DMG_URL}"
+  else
+    echo "  Warning: Gitee release create failed; skipping mirror"
+    echo "  Response: ${GITEE_RELEASE_RESP}"
+  fi
+else
+  echo ""
+  echo "  (Gitee mirror disabled — set GITEE_TOKEN env to enable)"
+fi
+
 # 写 GitHub Pages 上的 update manifest(web/api/latest.json),App 内
 # 检查更新优先打这个清单(无 API 限流,CDN 抗压),GitHub API 只做兜底。
+# dmg_urls 是优先级数组:Gitee(国内快) → GitHub(全球兜底)。
 # Pages 部署由 .github/workflows/pages.yml 在 push 后自动跑。
 echo ""
 echo "── Updating update manifest ──"
@@ -170,14 +221,26 @@ NOTES_RAW=""
 if [ -f "${NOTES_FILE:-}" ]; then
   NOTES_RAW=$(cat "${NOTES_FILE}")
 fi
-python3 - <<PY > "${MANIFEST_PATH}"
-import json
+GITHUB_DMG_URL="https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${VERSION}-${ARCH}.dmg"
+DMG_URLS_JSON="[\"${GITHUB_DMG_URL}\"]"
+if [ -n "${GITEE_DMG_URL}" ]; then
+  DMG_URLS_JSON="[\"${GITEE_DMG_URL}\", \"${GITHUB_DMG_URL}\"]"
+fi
+GITEE_DMG_URL="${GITEE_DMG_URL}" GITHUB_DMG_URL="${GITHUB_DMG_URL}" \
+NOTES_RAW="${NOTES_RAW}" VERSION="${VERSION}" TAG="${TAG}" REPO="${REPO}" \
+python3 - <<'PY' > "${MANIFEST_PATH}"
+import json, os
+notes = os.environ.get("NOTES_RAW", "")
+gitee = os.environ.get("GITEE_DMG_URL", "")
+github = os.environ.get("GITHUB_DMG_URL", "")
+dmg_urls = [u for u in [gitee, github] if u]
 print(json.dumps({
-    "version": "${VERSION}",
-    "tag": "${TAG}",
-    "url": "https://github.com/${REPO}/releases/tag/${TAG}",
-    "dmg_url": "https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${VERSION}-${ARCH}.dmg",
-    "notes": """$(printf '%s' "${NOTES_RAW}" | sed -e 's/\\\\/\\\\\\\\/g' -e 's/"""/\\\\"\\\\"\\\\"/g')""",
+    "version": os.environ["VERSION"],
+    "tag": os.environ["TAG"],
+    "url": f"https://github.com/{os.environ['REPO']}/releases/tag/{os.environ['TAG']}",
+    "dmg_urls": dmg_urls,
+    "dmg_url": dmg_urls[0] if dmg_urls else "",
+    "notes": notes,
 }, ensure_ascii=False, indent=2))
 PY
 echo "  ${MANIFEST_PATH}"

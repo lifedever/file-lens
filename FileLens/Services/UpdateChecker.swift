@@ -13,16 +13,23 @@ struct UpdateInfo: Equatable {
     let latestTag: String       // e.g. "v1.1.0"
     let releaseURL: String      // 浏览器打开的链接
     let body: String?           // release notes(markdown)
+    /// DMG 下载源(按优先级排,通常 [Gitee, GitHub])。下载器从第一个开始,
+    /// 失败自动切下一个。空数组 = 没有可下载的 DMG(不应发生)。
+    let downloadURLs: [URL]
 }
 
 actor UpdateChecker {
     static let shared = UpdateChecker()
 
     private struct Manifest: Decodable {
-        let version: String         // "1.1.0"
-        let tag: String             // "v1.1.0"
-        let url: String             // release page URL
-        let notes: String?          // markdown body
+        let version: String
+        let tag: String
+        let url: String
+        let notes: String?
+        /// 新字段:DMG 下载源优先列表(Gitee 优先 / GitHub 兜底)。
+        let dmg_urls: [String]?
+        /// 旧字段:单一 DMG URL。新代码兼容老 manifest 只有这一个字段的情况。
+        let dmg_url: String?
     }
 
     private struct Release: Decodable {
@@ -61,10 +68,14 @@ actor UpdateChecker {
         guard latest.compare(current, options: .numeric) == .orderedDescending else {
             return nil
         }
+        // 优先用 dmg_urls(优先级列表),缺失就回 dmg_url(单条),都没就空数组
+        let urls = (manifest.dmg_urls ?? [manifest.dmg_url].compactMap { $0 })
+            .compactMap(URL.init(string:))
         return UpdateInfo(
             latestTag: manifest.tag,
             releaseURL: manifest.url,
-            body: manifest.notes
+            body: manifest.notes,
+            downloadURLs: urls
         )
     }
 
@@ -87,10 +98,15 @@ actor UpdateChecker {
         guard latest.compare(current, options: .numeric) == .orderedDescending else {
             return nil
         }
+        // GitHub API fallback:从 assets 找 universal DMG 的下载链接;只有
+        // 一条 GitHub 直链,没 mirror。
+        let dmgURL = "https://github.com/lifedever/file-lens/releases/download/\(release.tag_name)/FileLens-\(stripV(release.tag_name))-universal.dmg"
+        let urls = [URL(string: dmgURL)].compactMap { $0 }
         return UpdateInfo(
             latestTag: release.tag_name,
             releaseURL: release.html_url,
-            body: release.body
+            body: release.body,
+            downloadURLs: urls
         )
     }
 

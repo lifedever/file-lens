@@ -91,6 +91,19 @@ struct SidebarView: View {
                     .onMove { source, destination in
                         reorderRules(in: ws, fromOffsets: source, toOffset: destination)
                     }
+
+                    // 未归档:这个 workspace 下面没被任何规则匹配的文件。
+                    // 放在 DisclosureGroup 内部 = 跟着每个文件夹自己的扩展
+                    // 状态走,而且不依赖"当前选中"才出现 —— 文件夹一展开
+                    // 就在那等着。count == 0 时隐藏避免视觉噪音。
+                    if uncategorizedCount(for: ws) > 0 {
+                        rowLabel(
+                            text: NSLocalizedString("Unfiled", value: "Unfiled", comment: ""),
+                            count: uncategorizedCount(for: ws),
+                            icon: AnyView(symbolIcon("questionmark.circle").foregroundStyle(.secondary))
+                        )
+                        .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
+                    }
                 } label: {
                     workspaceRow(ws)
                         // contextMenu 挂在 label 上,只对 workspace 行生效;若挂在
@@ -114,22 +127,9 @@ struct SidebarView: View {
                 reorderWorkspaces(fromOffsets: source, toOffset: destination)
             }
 
-            // Pinned global rows. They sit at the bottom of the list,
-            // independent of any single workspace's expansion state.
-            // - Unfiled is scoped to the currently-selected workspace; with
-            //   no selection or with zero unfiled files it doesn't add value,
-            //   so we hide it entirely.
-            // - Trash is a system action and shows unconditionally.
+            // 底部 Section:系统级 "废纸篓"。Unfiled 已经移到每个文件夹的
+            // DisclosureGroup 内部,跟着该文件夹自己的展开状态走。
             Section {
-                if let ws = selectedWorkspace, uncategorizedCount(for: ws) > 0 {
-                    rowLabel(
-                        text: NSLocalizedString("Unfiled", value: "Unfiled", comment: ""),
-                        count: uncategorizedCount(for: ws),
-                        icon: AnyView(symbolIcon("questionmark.circle").foregroundStyle(.secondary))
-                    )
-                    .tag(SidebarSelection.uncategorized(workspaceID: ws.id))
-                }
-
                 HStack(spacing: 6) {
                     iconSlot { symbolIcon("trash").foregroundStyle(.secondary) }
                     Text(NSLocalizedString("Trash", value: "Trash", comment: ""))

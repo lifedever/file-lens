@@ -37,6 +37,7 @@ struct FileLensApp: App {
                     RuleNameMigration.runIfNeeded(container: container)
                     WorkspaceSortOrderMigration.runIfNeeded(container: container)
                     WorkspaceRecursiveMigration.runIfNeeded(container: container)
+                    ArchivesISOMigration.runIfNeeded(container: container)
                     // Silent update probe — only nags if there's a newer
                     // release and we haven't checked in the last 24h.
                     UpdateService.checkInBackgroundIfNeeded()

@@ -24,7 +24,7 @@ enum BuiltInRules {
             rule("PDF",          "#DC2626", priority: 50, [c("extension", "is", "pdf")]),
             rule("Documents",    "#8B5CF6", priority: 60,
                  [c("extension", "isAnyOf", "doc,docx,xls,xlsx,ppt,pptx,key,pages,numbers,txt,md,rtf")]),
-            rule("Archives",     "#6B7280", priority: 70, [c("extension", "isAnyOf", "zip,rar,7z,tar,gz,bz2")]),
+            rule("Archives",     "#6B7280", priority: 70, [c("extension", "isAnyOf", "zip,rar,7z,tar,gz,bz2,iso")]),
             rule("Code",         "#059669", priority: 80,
                  [c("extension", "isAnyOf",
                     "js,ts,py,swift,rs,go,java,c,cpp,h,sh,json,yml,yaml,toml,html,css")]),

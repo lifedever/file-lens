@@ -72,6 +72,41 @@ enum WorkspaceSortOrderMigration {
     }
 }
 
+/// 1.1.1 把 `iso` 加进了 Archives 内置规则。但老用户数据库里的 Archives
+/// 规则 condition.value 仍是旧字符串,iso 文件不会被自动归类。这里启动时
+/// 检测一次:对所有 isBuiltIn=true 且 value 不含 "iso" 的 extension/isAnyOf
+/// 条件,把 iso 追加进去。只看是否含 "iso",不假设 value 是默认串,避免
+/// 用户自己改过的也被覆盖。
+@MainActor
+enum ArchivesISOMigration {
+    private static let migratedKey = "filelens.archivesISOMigrated.v1"
+
+    static func runIfNeeded(container: ModelContainer) {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: migratedKey) else { return }
+        let context = ModelContext(container)
+        guard let conditions = try? context.fetch(FetchDescriptor<Condition>()) else {
+            defaults.set(true, forKey: migratedKey)
+            return
+        }
+        var changed = false
+        for cnd in conditions where cnd.field == "extension" && cnd.op == "isAnyOf" {
+            // 只动 isBuiltIn=true 的规则下挂的条件,避免碰用户自定义规则
+            guard cnd.rule?.isBuiltIn == true else { continue }
+            let exts = cnd.value.split(separator: ",")
+                .map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+            // 包含常见压缩格式 + 不含 iso → 给它补上
+            let archiveExts: Set<String> = ["zip", "rar", "7z", "tar", "gz", "bz2"]
+            guard !Set(exts).intersection(archiveExts).isEmpty,
+                  !exts.contains("iso") else { continue }
+            cnd.value = cnd.value + ",iso"
+            changed = true
+        }
+        if changed { try? context.save() }
+        defaults.set(true, forKey: migratedKey)
+    }
+}
+
 /// 1.0.2 引入了 per-workspace `recursive` 字段,默认值 `false`。但老用户的
 /// workspace 之前一直是全量递归扫描的,新默认值会让他们的"工作区里突然变
 /// 少了文件"。这里第一次启动时把所有现有 workspace 标记成 `recursive = true`,

@@ -13,7 +13,11 @@ final class UpdateController: ObservableObject {
     @Published var latestTag: String = ""
     @Published var currentVersion: String = ""
     @Published var releaseNotes: String = ""
-    @Published var downloadURL: URL?
+    /// DMG 下载源优先级列表。startDownload 从 [0] 开始,失败时自动切下一个。
+    /// 通常 manifest 给:[Gitee, GitHub] —— 国内网络下 Gitee 快,出问题
+    /// 自动用 GitHub。
+    @Published var downloadURLs: [URL] = []
+    private var currentURLIndex: Int = 0
 
     // 下载状态
     @Published var isDownloading = false
@@ -34,7 +38,10 @@ final class UpdateController: ObservableObject {
         self.latestTag = info.latestTag
         self.currentVersion = currentVersion
         self.releaseNotes = info.body ?? ""
-        self.downloadURL = pickDMGURL(info: info)
+        self.downloadURLs = info.downloadURLs.isEmpty
+            ? fallbackURLs(tag: info.latestTag)
+            : info.downloadURLs
+        self.currentURLIndex = 0
         // reset
         isDownloading = false
         downloadProgress = 0
@@ -44,24 +51,31 @@ final class UpdateController: ObservableObject {
         downloadedFileURL = nil
     }
 
-    /// 我们 ship universal DMG,文件名格式 `FileLens-<version>-universal.dmg`。
-    /// 优先从 release.assets 找(GitHub API 给了 URL),拿不到就回退到约定 URL。
-    private func pickDMGURL(info: UpdateInfo) -> URL? {
-        // tag 形如 "v1.1.0",取数字部分
-        let version = info.latestTag.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
+    /// manifest / API 都没给 DMG URL 时的兜底 —— 按约定文件名拼 GitHub
+    /// release 直链。
+    private func fallbackURLs(tag: String) -> [URL] {
+        let version = tag.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
         let dmgName = "FileLens-\(version)-universal.dmg"
-        return URL(string: "https://github.com/lifedever/file-lens/releases/download/v\(version)/\(dmgName)")
+        return [URL(string:
+            "https://github.com/lifedever/file-lens/releases/download/v\(version)/\(dmgName)")]
+            .compactMap { $0 }
     }
 
     // MARK: - Download
 
     func startDownload() {
-        guard let url = downloadURL else { return }
+        guard !downloadURLs.isEmpty else { return }
+        currentURLIndex = 0
         isDownloading = true
         downloadProgress = 0
         downloadedBytes = 0
         downloadComplete = false
+        beginDownload(url: downloadURLs[currentURLIndex])
+    }
 
+    /// 真正发起一次下载请求。如果当前 URL 失败,onError 里会切到下一个 URL
+    /// 重新调本函数,直到所有 URL 都试过才向用户报错。
+    private func beginDownload(url: URL) {
         let delegate = DownloadDelegate { [weak self] progress, received, total in
             Task { @MainActor in
                 self?.downloadProgress = progress
@@ -76,14 +90,22 @@ final class UpdateController: ObservableObject {
             }
         } onError: { [weak self] message in
             Task { @MainActor in
-                self?.isDownloading = false
-                self?.downloadComplete = false
-                self?.downloadProgress = 0
-                self?.showDownloadError(message)
+                guard let self = self else { return }
+                // 当前 URL 失败 → 切下一个继续。一组 URL 全部失败才弹错误。
+                self.currentURLIndex += 1
+                if self.currentURLIndex < self.downloadURLs.count {
+                    self.downloadProgress = 0
+                    self.downloadedBytes = 0
+                    self.beginDownload(url: self.downloadURLs[self.currentURLIndex])
+                } else {
+                    self.isDownloading = false
+                    self.downloadComplete = false
+                    self.downloadProgress = 0
+                    self.showDownloadError(message)
+                }
             }
         }
         self.downloadDelegate = delegate
-
         let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
         downloadTask = session.downloadTask(with: url)
         downloadTask?.resume()

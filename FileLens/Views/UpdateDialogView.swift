@@ -251,7 +251,7 @@ struct UpdateDialogView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .frame(width: 560, height: 460)
+        .frame(width: 560)
     }
 
     // MARK: Downloading / Ready
@@ -308,7 +308,8 @@ struct UpdateDialogView: View {
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
         }
-        .frame(width: 460, height: 200)
+        // 跟 availableView 同宽,避免切状态时窗口宽度跳变
+        .frame(width: 560)
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
@@ -326,14 +327,13 @@ enum UpdateDialogPresenter {
         UpdateController.shared.prepare(info: info, currentVersion: currentVersion)
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 460),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 100),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
         )
         window.title = NSLocalizedString("update.available.title",
             value: "Update Available", comment: "")
-        window.center()
         window.isReleasedWhenClosed = false
 
         let dialog = UpdateDialogView(
@@ -343,10 +343,14 @@ enum UpdateDialogPresenter {
                 NSApp.stopModal()
             }
         )
-        let hosting = NSHostingView(rootView: dialog)
-        hosting.frame = window.contentView!.bounds
-        hosting.autoresizingMask = [.width, .height]
-        window.contentView = hosting
+        // 关键:用 NSHostingController + sizingOptions,窗口高度跟着 SwiftUI
+        // intrinsic content size 自动调整。available → downloading 切状态时
+        // 窗口跟着视图高度变化,不再有大块空白底。.preferredContentSize 让
+        // 控制器把 SwiftUI 的 ideal size 上报给窗口。
+        let host = NSHostingController(rootView: dialog)
+        host.sizingOptions = [.preferredContentSize, .intrinsicContentSize]
+        window.contentViewController = host
+        window.center()
         NSApp.runModal(for: window)
     }
 }
