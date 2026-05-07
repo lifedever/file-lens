@@ -43,6 +43,7 @@ struct FileLensApp: App {
                     UpdateService.checkInBackgroundIfNeeded()
                 }
                 .modifier(MainWindowProxyInstaller())
+                .updateSheet()
         }
         .modelContainer(container)
         .commands { FileLensCommands() }

@@ -1311,6 +1311,20 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载失败" } }
       }
     },
+    "update.download.error.body.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "All download mirrors failed:\n%@\n\nLast error: %@\n\nYou can download manually from the release page." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "所有下载源都失败了：\n%@\n\n最后错误：%@\n\n你可以从发布页手动下载安装。" } }
+      }
+    },
+    "update.openReleasePage" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open Release Page" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "打开发布页面" } }
+      }
+    },
     "update.dmg.error.title" : {
       "extractionState" : "manual",
       "localizations" : {

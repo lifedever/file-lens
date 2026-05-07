@@ -18,6 +18,19 @@ final class UpdateController: ObservableObject {
     /// 自动用 GitHub。
     @Published var downloadURLs: [URL] = []
     private var currentURLIndex: Int = 0
+    /// 浏览器去打开的 Release 页面 —— 所有镜像下载都失败时,引导用户手动
+    /// 去这个页面下载。
+    @Published var releaseURL: URL?
+
+    /// 控制更新对话框的显示。Dialog 通过主窗口的 `.sheet(isPresented:)`
+    /// 挂载,**不能用 NSApp.runModal**:modal session 会把 run loop 切到
+    /// `NSModalPanelRunLoopMode`,SwiftUI 在该 mode 下对 `ProgressView(value:)`
+    /// 的 view diff 不重算 value 参数,导致进度条永远停在小值;同时从后台
+    /// OperationQueue 调度过来的 `Task { @MainActor }` / `DispatchQueue.main.async`
+    /// 也不会被稳定 pump,onComplete 状态切换偶尔丢失。
+    /// 改用 SwiftUI 的 `.sheet`(底层走 NSPanel + 普通 run loop),所有
+    /// @Published 状态更新都正常生效。参考 TaskTick(Sources/Engine/UpdateChecker.swift)。
+    @Published var showUpdateDialog = false
 
     // 下载状态
     @Published var isDownloading = false
@@ -30,10 +43,16 @@ final class UpdateController: ObservableObject {
     private var downloadTask: URLSessionDownloadTask?
     private var downloadDelegate: DownloadDelegate?
 
+    /// Stalled detector:每次收到进度都 reset 一次。N 秒没动静 → 认为这个 URL
+    /// 卡死,主动 cancel,触发 onError 走到下一个镜像。比单纯靠 URLSession
+    /// 的 `timeoutIntervalForRequest` 早响应,用户不用干等到 OS 超时才换源。
+    private var stallTimer: Timer?
+    private let stallTimeout: TimeInterval = 30
+
     private init() {}
 
-    /// 进入对话框前,UpdateService 调它把这次的 release 信息塞进来,并 reset
-    /// 之前的下载状态(用户可能上一轮取消了)。
+    /// 注入 release 信息并 reset 下载状态;**最后一步**把 showUpdateDialog
+    /// 翻成 true,主窗口的 `.sheet(isPresented:)` 监听到就把 dialog 弹出来。
     func prepare(info: UpdateInfo, currentVersion: String) {
         self.latestTag = info.latestTag
         self.currentVersion = currentVersion
@@ -41,6 +60,7 @@ final class UpdateController: ObservableObject {
         self.downloadURLs = info.downloadURLs.isEmpty
             ? fallbackURLs(tag: info.latestTag)
             : info.downloadURLs
+        self.releaseURL = URL(string: info.releaseURL)
         self.currentURLIndex = 0
         // reset
         isDownloading = false
@@ -49,6 +69,8 @@ final class UpdateController: ObservableObject {
         totalBytes = 0
         downloadComplete = false
         downloadedFileURL = nil
+        // 触发 sheet 弹出
+        showUpdateDialog = true
     }
 
     /// manifest / API 都没给 DMG URL 时的兜底 —— 按约定文件名拼 GitHub
@@ -65,6 +87,10 @@ final class UpdateController: ObservableObject {
 
     func startDownload() {
         guard !downloadURLs.isEmpty else { return }
+        NSLog("[FileLens-update] download URL list (priority order):")
+        for (idx, u) in downloadURLs.enumerated() {
+            NSLog("[FileLens-update]   [%d] %@", idx, u.absoluteString)
+        }
         currentURLIndex = 0
         isDownloading = true
         downloadProgress = 0
@@ -81,9 +107,12 @@ final class UpdateController: ObservableObject {
                 self?.downloadProgress = progress
                 self?.downloadedBytes = received
                 self?.totalBytes = total
+                self?.resetStallTimer()
             }
         } onComplete: { [weak self] fileURL in
             Task { @MainActor in
+                self?.cancelStallTimer()
+                self?.downloadProgress = 1.0
                 self?.downloadComplete = true
                 self?.downloadedFileURL = fileURL
                 self?.isDownloading = false
@@ -91,6 +120,7 @@ final class UpdateController: ObservableObject {
         } onError: { [weak self] message in
             Task { @MainActor in
                 guard let self = self else { return }
+                self.cancelStallTimer()
                 // 当前 URL 失败 → 切下一个继续。一组 URL 全部失败才弹错误。
                 self.currentURLIndex += 1
                 if self.currentURLIndex < self.downloadURLs.count {
@@ -106,12 +136,46 @@ final class UpdateController: ObservableObject {
             }
         }
         self.downloadDelegate = delegate
-        let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        NSLog("[FileLens-update] starting download: %@", url.absoluteString)
+        // 走代理 / 慢网络默认 60s 偏紧,但也不能无限大,否则单个挂死的 URL
+        // 会拖住整个 fallback 链路。120s 单请求 + 30 分钟总上限 + 应用层
+        // stalled detector(30s 无进度自动切下个 URL)三层兜底。
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 120
+        config.timeoutIntervalForResource = 1800
+        let session = URLSession(configuration: config, delegate: delegate, delegateQueue: nil)
         downloadTask = session.downloadTask(with: url)
         downloadTask?.resume()
+        resetStallTimer()
+    }
+
+    // MARK: - Stalled detector
+
+    private func resetStallTimer() {
+        stallTimer?.invalidate()
+        stallTimer = Timer.scheduledTimer(withTimeInterval: stallTimeout,
+                                          repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleStalledDownload()
+            }
+        }
+    }
+
+    private func cancelStallTimer() {
+        stallTimer?.invalidate()
+        stallTimer = nil
+    }
+
+    private func handleStalledDownload() {
+        guard isDownloading, !downloadComplete else { return }
+        NSLog("[FileLens-update] download stalled (no progress for %ds), failing over to next URL",
+              Int(stallTimeout))
+        // cancel 会走 didCompleteWithError → onError → 自动切下一个 URL
+        downloadTask?.cancel()
     }
 
     func cancelDownload() {
+        cancelStallTimer()
         downloadTask?.cancel()
         downloadTask = nil
         isDownloading = false
@@ -228,9 +292,22 @@ final class UpdateController: ObservableObject {
         alert.alertStyle = .critical
         alert.messageText = NSLocalizedString("update.download.error.title",
             value: "Download failed", comment: "")
-        alert.informativeText = message
-        alert.addButton(withTitle: NSLocalizedString("OK", value: "OK", comment: ""))
-        alert.runModal()
+        // 把所有试过的源 + 错误一起呈现,让用户知道哪些试过了。然后给一个
+        // "去 GitHub Release 手动下载"的按钮兜底。
+        let triedURLs = downloadURLs.map { $0.absoluteString }.joined(separator: "\n")
+        alert.informativeText = String(format:
+            NSLocalizedString("update.download.error.body.format",
+                value: "All download mirrors failed:\n%@\n\nLast error: %@\n\nYou can download manually from the release page.",
+                comment: ""),
+            triedURLs, message)
+        // 第一个按钮 = default(回车);"打开 Release 页"作为推荐操作。
+        alert.addButton(withTitle: NSLocalizedString("update.openReleasePage",
+            value: "Open Release Page", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Cancel",
+            value: "Cancel", comment: ""))
+        if alert.runModal() == .alertFirstButtonReturn, let url = releaseURL {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func showDMGError() {

@@ -182,10 +182,15 @@ struct MarkdownView: View {
 }
 
 // MARK: - Update dialog
+//
+// 通过 `.sheet(isPresented: $controller.showUpdateDialog)` 挂载到主窗口,
+// 不要用 NSApp.runModal —— 那会把 run loop 切到 NSModalPanelRunLoopMode,
+// SwiftUI 的 @ObservedObject 状态更新和 ProgressView re-render 都会失灵。
+// 模式参考 TaskTick(Sources/Views/Main/UpdateDialogView.swift)。
 
 struct UpdateDialogView: View {
     @ObservedObject var controller: UpdateController
-    let onClose: () -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         Group {
@@ -237,7 +242,7 @@ struct UpdateDialogView: View {
 
             HStack {
                 Spacer()
-                Button("Cancel") { onClose() }
+                Button("Cancel") { dismiss() }
                     .keyboardShortcut(.cancelAction)
                 Button {
                     controller.startDownload()
@@ -288,7 +293,7 @@ struct UpdateDialogView: View {
                 Spacer()
                 if controller.downloadComplete {
                     Button {
-                        onClose()
+                        dismiss()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                             controller.installAndRestart()
                         }
@@ -301,7 +306,7 @@ struct UpdateDialogView: View {
                 } else {
                     Button("Cancel") {
                         controller.cancelDownload()
-                        onClose()
+                        dismiss()
                     }
                 }
             }
@@ -319,38 +324,24 @@ struct UpdateDialogView: View {
     }
 }
 
-// MARK: - Window presenter
+// MARK: - Sheet host
 
-@MainActor
-enum UpdateDialogPresenter {
-    static func present(_ info: UpdateInfo, currentVersion: String) {
-        UpdateController.shared.prepare(info: info, currentVersion: currentVersion)
+/// 挂在 ContentView 上让更新对话框跟主窗口绑定。监听
+/// `UpdateController.shared.showUpdateDialog`,主窗口存在期间它什么时候翻
+/// 成 true 就什么时候弹 sheet。dialog 内部用 `@Environment(\.dismiss)` 关闭,
+/// 关闭时 SwiftUI 自动把 binding 复位为 false。
+struct UpdateSheetHost: ViewModifier {
+    @ObservedObject private var controller = UpdateController.shared
 
-        let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 100),
-            styleMask: [.titled, .closable],
-            backing: .buffered,
-            defer: false
-        )
-        window.title = NSLocalizedString("update.available.title",
-            value: "Update Available", comment: "")
-        window.isReleasedWhenClosed = false
+    func body(content: Content) -> some View {
+        content.sheet(isPresented: $controller.showUpdateDialog) {
+            UpdateDialogView(controller: controller)
+        }
+    }
+}
 
-        let dialog = UpdateDialogView(
-            controller: UpdateController.shared,
-            onClose: { [weak window] in
-                window?.close()
-                NSApp.stopModal()
-            }
-        )
-        // 关键:用 NSHostingController + sizingOptions,窗口高度跟着 SwiftUI
-        // intrinsic content size 自动调整。available → downloading 切状态时
-        // 窗口跟着视图高度变化,不再有大块空白底。.preferredContentSize 让
-        // 控制器把 SwiftUI 的 ideal size 上报给窗口。
-        let host = NSHostingController(rootView: dialog)
-        host.sizingOptions = [.preferredContentSize, .intrinsicContentSize]
-        window.contentViewController = host
-        window.center()
-        NSApp.runModal(for: window)
+extension View {
+    func updateSheet() -> some View {
+        modifier(UpdateSheetHost())
     }
 }

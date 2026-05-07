@@ -58,18 +58,31 @@ actor UpdateChecker {
     }
 
     private func fetchFromPages(currentVersion: String) async -> UpdateInfo? {
-        guard let url = URL(string: "https://lifedever.github.io/file-lens/api/latest.json") else {
-            return nil
+        // 多源 fallback 拉 manifest:
+        //   1. Gitee raw(国内,稳定)
+        //   2. GitHub raw(海外兜底)
+        // 不走 GitHub Pages 的原因:Pages 在 custom domain 没开 HTTPS 时
+        // 会 301 到 http://,ATS 拒绝 HTTPS→HTTP 降级,fetch 直接失败。
+        let manifestURLs = [
+            "https://gitee.com/lifedever/file-lens/raw/main/web/api/latest.json",
+            "https://raw.githubusercontent.com/lifedever/file-lens/main/web/api/latest.json"
+        ]
+        var manifest: Manifest?
+        for str in manifestURLs {
+            guard let url = URL(string: str) else { continue }
+            var req = URLRequest(url: url)
+            req.timeoutInterval = 6
+            req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
+            if let (data, response) = try? await URLSession.shared.data(for: req),
+               let http = response as? HTTPURLResponse, http.statusCode == 200,
+               let m = try? JSONDecoder().decode(Manifest.self, from: data) {
+                NSLog("[FileLens-update] manifest fetched OK from %@", str)
+                manifest = m
+                break
+            }
+            NSLog("[FileLens-update] manifest fetch failed: %@", str)
         }
-        var req = URLRequest(url: url)
-        req.timeoutInterval = 6
-        // Pages CDN 偶尔会返回旧缓存,加个 cache-buster query 强制 revalidate
-        req.cachePolicy = .reloadIgnoringLocalAndRemoteCacheData
-        guard let (data, response) = try? await URLSession.shared.data(for: req),
-              let http = response as? HTTPURLResponse, http.statusCode == 200,
-              let manifest = try? JSONDecoder().decode(Manifest.self, from: data) else {
-            return nil
-        }
+        guard let manifest else { return nil }
         let latest = stripV(manifest.version)
         let current = stripV(currentVersion)
         guard latest.compare(current, options: .numeric) == .orderedDescending else {
@@ -125,6 +138,7 @@ actor UpdateChecker {
               let release = try? JSONDecoder().decode(Release.self, from: data),
               release.draft != true,
               release.prerelease != true else {
+            NSLog("[FileLens-update] GitHub API fallback also failed")
             return nil
         }
         let latest = stripV(release.tag_name)
@@ -132,11 +146,15 @@ actor UpdateChecker {
         guard latest.compare(current, options: .numeric) == .orderedDescending else {
             return nil
         }
-        // GitHub API fallback:按当前架构拼 release asset 直链;只有一条 GitHub
-        // 直链,没 mirror。文件名约定 `FileLens-<version>-<arch>.dmg`。
+        // GitHub API fallback:即使 manifest 拉不到,也按命名约定补一个
+        // Gitee URL 进 priority list(国内快),GitHub URL 兜底。
         let arch = Self.currentArch()
-        let dmgURL = "https://github.com/lifedever/file-lens/releases/download/\(release.tag_name)/FileLens-\(stripV(release.tag_name))-\(arch).dmg"
-        let urls = [URL(string: dmgURL)].compactMap { $0 }
+        let version = stripV(release.tag_name)
+        let dmgName = "FileLens-\(version)-\(arch).dmg"
+        let urls = [
+            URL(string: "https://gitee.com/lifedever/file-lens/releases/download/\(release.tag_name)/\(dmgName)"),
+            URL(string: "https://github.com/lifedever/file-lens/releases/download/\(release.tag_name)/\(dmgName)")
+        ].compactMap { $0 }
         return UpdateInfo(
             latestTag: release.tag_name,
             releaseURL: release.html_url,

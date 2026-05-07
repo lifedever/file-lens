@@ -53,9 +53,10 @@ enum UpdateService {
     // MARK: - Alerts
 
     private static func presentUpdateAlert(_ info: UpdateInfo) {
-        // 走自定义 SwiftUI 弹窗,可以渲染 GitHub Release 的 markdown body
-        // (changelog / 新功能列表),比 NSAlert 信息量大得多。
-        UpdateDialogPresenter.present(info, currentVersion: currentVersion)
+        // 走 SwiftUI sheet —— UpdateController 准备好状态,主窗口的
+        // .updateSheet() modifier 监听到 showUpdateDialog 翻转就把 dialog 弹出。
+        // 不要用 NSApp.runModal(详见 UpdateController 注释)。
+        UpdateController.shared.prepare(info: info, currentVersion: currentVersion)
     }
 
     private static func presentUpToDateAlert() {
