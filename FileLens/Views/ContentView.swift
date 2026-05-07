@@ -34,6 +34,13 @@ struct ContentView: View {
     @AppStorage("filelens.onboardingCompleted") private var onboardingCompleted: Bool = false
     @AppStorage("filelens.autoExpandInspector") private var autoExpandInspector: Bool = false
     @State private var searchText: String = ""
+    /// `searchText` 的防抖镜像。`.searchable` 直接绑定 `searchText`,但
+    /// 过滤(filesForCurrentSelection)只读 `debouncedSearchText`。每次按键 cancel
+    /// 上一个等待 task,250ms 内没有新输入才把值落到 debounced —— 大目录
+    /// (10k+ 文件)每键都全表 filter+sort 的卡顿就此消失。
+    /// 250ms 是 VSCode / Spotlight 同款数量级,体感「即时」但能拢住快速连击。
+    @State private var debouncedSearchText: String = ""
+    @State private var searchDebounceTask: Task<Void, Never>?
     /// 首次启动(没添加任何文件夹)时把 sidebar 隐藏 —— 空状态本身已经有
     /// 选择文件夹的 CTA,左侧空白栏看起来很奇怪。注意这是 *单向* 切换:
     /// 一旦用户加了第一个 workspace 就转 .all,之后用户手动隐藏/显示都
@@ -179,6 +186,21 @@ struct ContentView: View {
                 showInspector = true
             }
         }
+        // 搜索防抖。clear(空串)走即时通道 —— 用户点 X 不希望看到列表 250ms
+        // 后才弹回完整;有内容时才进入 debounce 等待。
+        .onChange(of: searchText) { _, newValue in
+            searchDebounceTask?.cancel()
+            if newValue.isEmpty {
+                debouncedSearchText = ""
+                return
+            }
+            searchDebounceTask = Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                if !Task.isCancelled {
+                    debouncedSearchText = newValue
+                }
+            }
+        }
         // Publish actions to the macOS menu bar (File → Add Folder…, New Rule…)
         .focusedValue(\.addFolderAction, addFolder)
         .focusedValue(\.newRuleAction, { newRule() })
@@ -197,9 +219,9 @@ struct ContentView: View {
             base = present
         }
 
-        let filtered = searchText.isEmpty
+        let filtered = debouncedSearchText.isEmpty
             ? base
-            : base.filter { $0.name.localizedCaseInsensitiveContains(searchText) }
+            : base.filter { $0.name.localizedCaseInsensitiveContains(debouncedSearchText) }
 
         return filtered.sorted { $0.dateAdded > $1.dateAdded }
     }

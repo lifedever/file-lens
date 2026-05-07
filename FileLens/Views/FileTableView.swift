@@ -15,6 +15,12 @@ struct FileTableView: View {
     /// files identity (count + first/last id) and sortOrder.
     @State private var grouped: [GroupedSlice]
 
+    /// 一次拖拽手势内只 beginDraggingSession 一次的守门 flag。
+    @State private var dragHandedOff: Bool = false
+
+    /// shift-range 锚点(同 grid)。
+    @State private var selectionAnchor: UUID?
+
     init(files: [FileNode], selection: Binding<Set<UUID>>) {
         self.files = files
         _selection = selection
@@ -31,11 +37,43 @@ struct FileTableView: View {
         Table(of: FileNode.self, selection: $selection, sortOrder: $sortOrder) {
             TableColumn("Name", value: \.name) { f in
                 HStack(spacing: 6) {
-                    Image(nsImage: FileIconCache.icon(for: f))
-                        .resizable().interpolation(.high)
-                        .scaledToFit().frame(width: 18, height: 18)
+                    FileThumbnail(file: f, size: 18)
                     Text(f.name).lineLimit(1).truncationMode(.middle)
                 }
+                .contentShape(Rectangle())
+                // SwiftUI gesture 在 Table cell 里会跟 NSTableView 抢 mouseDown,
+                // 单击不再触发 NSTableView 自带的选中。所以我们自己挂一个
+                // TapGesture 同步 selection 状态(支持 ⌘ toggle / ⇧ range)。
+                // 然后 DragGesture 处理拖拽,二者通过 .simultaneousGesture 并行。
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded { FileActions.open(f) }
+                )
+                .simultaneousGesture(
+                    // 用 minimumDistance: 0 一手抓「点击」和「拖拽」两件事 ——
+                    // 通过 translation 实际距离区分。这样不依赖 SwiftUI 自己
+                    // 在 TapGesture / DragGesture 之间仲裁,「微动后松手」也能
+                    // 干净落到 click 分支,不会卡在「拖不起来又 collapse 不了」
+                    // 的中间态。
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            let dist = hypot(value.translation.width, value.translation.height)
+                            guard dist >= 4, !dragHandedOff else { return }
+                            let urls = filesForDrag(f).compactMap(FileActions.url(for:))
+                            guard !urls.isEmpty else { return }
+                            dragHandedOff = true
+                            DragSession.begin(urls: urls)
+                            // AppKit 接管后 SwiftUI 不再 fire,下个 runloop tick
+                            // 重置 flag。详见原 onChanged 注释。
+                            DispatchQueue.main.async { dragHandedOff = false }
+                        }
+                        .onEnded { value in
+                            let dist = hypot(value.translation.width, value.translation.height)
+                            // 没真拖动(< 4pt)才走点击逻辑,否则不动 selection,
+                            // 让 AppKit drag session 自己收尾。
+                            if dist < 4 { handleClick(f) }
+                            dragHandedOff = false
+                        }
+                )
             }
 
             TableColumn("Size", value: \.size) { f in
@@ -44,14 +82,16 @@ struct FileTableView: View {
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
             }
-            .width(80)
+            // .width(min:ideal:) 让用户能拖列分隔符调整宽度;固定 .width(N)
+            // 会让 SwiftUI Table 把列锁死,分隔符不响应拖拽。
+            .width(min: 60, ideal: 80)
 
             TableColumn("Date Added", value: \.dateAdded) { f in
                 Text(verbatim: Self.dateFormatter.string(from: f.dateAdded))
                     .foregroundStyle(.secondary)
                     .monospacedDigit()
             }
-            .width(160)
+            .width(min: 120, ideal: 160)
 
             TableColumn("Tags") { (f: FileNode) in
                 Text(f.tags.map { TagDisplay.localizedName($0.name) }.joined(separator: ", "))
@@ -66,7 +106,7 @@ struct FileTableView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-            .width(80)
+            .width(min: 60, ideal: 80)
         } rows: {
             ForEach(grouped) { slice in
                 Section(slice.bucket.localizedTitle) {
@@ -129,6 +169,50 @@ struct FileTableView: View {
     /// row should target the whole selection.
     private func filesForContextMenu(ids: Set<FileNode.ID>) -> [FileNode] {
         files.filter { ids.contains($0.id) }
+    }
+
+    /// 拖拽时实际带走的文件集合(同 grid):被拖项在 selection 中 → 拖整组;
+    /// 不在 → 只拖它一个,不动 selection。
+    private func filesForDrag(_ file: FileNode) -> [FileNode] {
+        if selection.contains(file.id) {
+            return files.filter { selection.contains($0.id) }
+        }
+        return [file]
+    }
+
+    /// 模拟 NSTableView 的单击选中行为(因为 SwiftUI cell 上的 gesture 把
+    /// mouseDown 拦截了)。同 grid 选择规则:
+    ///   - 普通点击:替换为该单项 + 锚点更新
+    ///   - ⌘ 点击:toggle + 锚点更新
+    ///   - ⇧ 点击(有锚点):锚点到当前整段
+    ///   - ⇧ 点击(无锚点):退化为普通点击
+    private func handleClick(_ file: FileNode) {
+        let mods = NSEvent.modifierFlags
+        let cmd = mods.contains(.command)
+        let shift = mods.contains(.shift)
+
+        if shift,
+           let anchor = selectionAnchor,
+           let from = files.firstIndex(where: { $0.id == anchor }),
+           let to = files.firstIndex(where: { $0.id == file.id }) {
+            let lo = min(from, to)
+            let hi = max(from, to)
+            selection = Set(files[lo...hi].map(\.id))
+            return
+        }
+
+        if cmd {
+            if selection.contains(file.id) { selection.remove(file.id) }
+            else { selection.insert(file.id) }
+            selectionAnchor = file.id
+            return
+        }
+
+        // 普通点击:替换为单项(同 Finder)。点击在已选中项也 collapse,
+        // 因为 DragGesture 已经在 onEnded 之前用距离判定区分过 click vs drag,
+        // 这里走到的一定是「点击 + 没拖动」。
+        selection = [file.id]
+        selectionAnchor = file.id
     }
 
     /// Per-cell formatters as `static let` —— 之前是 computed property,

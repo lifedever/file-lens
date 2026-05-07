@@ -32,6 +32,10 @@ struct InspectorSnapshot {
     let relativePath: String
     let tags: [TagInfo]
     let icon: NSImage
+    /// 解算一次的真实 file URL,给 PreviewHost 用。父 body 里同步取出,
+    /// 让 InspectorView 的预览子树拿到 primitive,避免动画期间触发 bookmark
+    /// resolve(那是 IO)。失败为 nil → PreviewHost 显示 unsupported 兜底。
+    let url: URL?
 
     @MainActor
     init(file f: FileNode, rules: [Rule]) {
@@ -43,6 +47,7 @@ struct InspectorSnapshot {
         self.dateModified = f.dateModified
         self.relativePath = f.relativePath
         self.icon = FileIconCache.icon(for: f)
+        self.url = FileActions.url(for: f)
 
         // 从 workspace 的 rule 列表里建一个 name → color 索引,FileTag 拿
         // 它名字反查颜色。
@@ -80,7 +85,10 @@ struct InspectorView: View {
             VStack(alignment: .leading, spacing: 14) {
                 if selectedFiles.count > 1 {
                     multiSelectHeader
-                } else if let s = snapshot {
+                } else if let s = snapshot, let file = selectedFiles.first {
+                    // 顶部预览区:单选时显示。多选时不构造,与原有 multiSelect
+                    // 路径完全一致,避免给「批量选中」场景额外造视觉噪声。
+                    PreviewHost(file: file, url: s.url)
                     singleHeader(for: s)
                     Divider()
                     metadata(for: s)
@@ -98,23 +106,21 @@ struct InspectorView: View {
 
     // MARK: - Header variants
 
+    /// 单选 header:只显示文件名 + 大小。图标已经在上方 PreviewHost 里以
+    /// 大尺寸出现(图片是缩略图、unsupported 是 96pt 扩展名图标),这里
+    /// 再重复 56pt 小图标就是噪音。
     private func singleHeader(for s: InspectorSnapshot) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(nsImage: s.icon)
-                .resizable().interpolation(.high)
-                .scaledToFit()
-                .frame(width: 56, height: 56)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(verbatim: s.name)
-                    .font(.headline)
-                    .lineLimit(3)
-                    .multilineTextAlignment(.leading)
-                Text(verbatim: Self.bytes.string(fromByteCount: s.size))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
+        VStack(alignment: .leading, spacing: 2) {
+            Text(verbatim: s.name)
+                .font(.headline)
+                .lineLimit(3)
+                .multilineTextAlignment(.leading)
+            Text(verbatim: Self.bytes.string(fromByteCount: s.size))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 多选时的头部:用文件夹/集合图标 + "N 项已选" + 总大小。比硬塞首文件

@@ -1941,6 +1941,13 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "操作" } }
       }
     },
+    "preview.unsupported" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No preview" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "暂无预览" } }
+      }
+    },
     "inspector.multiselect.format" : {
       "extractionState" : "manual",
       "localizations" : {
