@@ -278,6 +278,152 @@ body {
     line-height: 1.6;
 }
 
+/* === Section sub-text (sits under section-title) === */
+.section-sub {
+    margin: -22px auto 36px;
+    max-width: 540px;
+    text-align: center;
+    font-size: 15px;
+    color: var(--text-tertiary);
+    line-height: 1.6;
+}
+
+/* === How it works === */
+.how {
+    padding: 80px 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+}
+.steps {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 18px;
+    counter-reset: step;
+}
+.step {
+    position: relative;
+    padding: 28px 24px 22px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+}
+.step-num {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--accent) 14%, transparent);
+    color: var(--accent);
+    font-weight: 700; font-size: 15px;
+    margin-bottom: 12px;
+}
+.step h3 {
+    margin: 0 0 6px;
+    font-size: 17px;
+    font-weight: 700;
+}
+.step p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.65;
+}
+
+/* === Use cases === */
+.use-cases {
+    padding: 80px 0;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+}
+.cases {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+}
+.case {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: transform .15s ease, box-shadow .15s ease;
+}
+.case:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-sm);
+}
+.case-emoji {
+    font-size: 32px;
+    line-height: 1;
+    margin-bottom: 14px;
+}
+.case h3 {
+    margin: 0 0 8px;
+    font-size: 17px;
+    font-weight: 700;
+}
+.case p {
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.7;
+}
+
+/* === FAQ === */
+.faq {
+    padding: 80px 0;
+    background: var(--surface);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+}
+.faq-list {
+    max-width: 760px;
+    margin: 0 auto;
+}
+.faq-list details {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg);
+    margin-bottom: 10px;
+    overflow: hidden;
+    transition: box-shadow .15s ease;
+}
+.faq-list details[open] {
+    box-shadow: var(--shadow-sm);
+}
+.faq-list summary {
+    padding: 16px 20px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 15px;
+    list-style: none;
+    position: relative;
+    padding-right: 44px;
+}
+.faq-list summary::-webkit-details-marker { display: none; }
+.faq-list summary::after {
+    content: "";
+    position: absolute;
+    right: 22px;
+    top: 50%;
+    width: 8px; height: 8px;
+    border-right: 2px solid var(--text-tertiary);
+    border-bottom: 2px solid var(--text-tertiary);
+    transform: translateY(-70%) rotate(45deg);
+    transition: transform .2s ease;
+}
+.faq-list details[open] summary::after {
+    transform: translateY(-30%) rotate(-135deg);
+}
+.faq-list p {
+    margin: 0;
+    padding: 0 20px 18px;
+    color: var(--text-secondary);
+    font-size: 14px;
+    line-height: 1.75;
+}
+
 /* === Donate === */
 .donate {
     padding: 110px 24px;
@@ -317,6 +463,9 @@ body {
     .nav-links a:not(.btn) { display: none; }
     .hero { padding: 56px 0 40px; }
     .hero-icon { width: 104px; height: 104px; }
-    .screenshots, .features, .donate { padding-top: 48px; padding-bottom: 48px; }
+    .screenshots, .features, .how, .use-cases, .faq, .donate {
+        padding-top: 48px; padding-bottom: 48px;
+    }
     .donate { padding: 64px 24px; }
+    .section-sub { margin-top: -16px; padding: 0 8px; }
 }

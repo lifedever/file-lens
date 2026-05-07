@@ -21,9 +21,9 @@
             </a>
             <div class="nav-links">
                 <a href="#features">功能</a>
+                <a href="#use-cases">场景</a>
                 <a href="#screenshots">截图</a>
                 <a href="https://github.com/lifedever/file-lens" target="_blank" rel="noopener">GitHub</a>
-                <a href="https://github.com/lifedever/file-lens/issues" target="_blank" rel="noopener">反馈</a>
                 <a href="https://github.com/lifedever/file-lens/releases/latest" class="btn btn-primary" target="_blank" rel="noopener">下载</a>
             </div>
         </nav>
@@ -43,12 +43,32 @@
                        class="btn btn-primary btn-lg" target="_blank" rel="noopener">
                         下载 macOS 版
                     </a>
-                    <a href="https://github.com/lifedever/file-lens"
-                       class="btn btn-ghost btn-lg" target="_blank" rel="noopener">
-                        在 GitHub 上查看
-                    </a>
                 </div>
                 <p class="meta">免费开源 · macOS 14.0+ · Apple Silicon &amp; Intel</p>
+            </div>
+        </section>
+
+        <section class="how">
+            <div class="container">
+                <h2 class="section-title">三步开始用</h2>
+                <p class="section-sub">不动你的文件，只是把它们重新看一遍。</p>
+                <ol class="steps">
+                    <li class="step">
+                        <span class="step-num">1</span>
+                        <h3>选文件夹</h3>
+                        <p>把 Downloads、Desktop、~/Code 这些经常乱的文件夹拖进来，几个都行。</p>
+                    </li>
+                    <li class="step">
+                        <span class="step-num">2</span>
+                        <h3>写规则（或用内置的）</h3>
+                        <p>按扩展名 / 名称 / 大小 / 时间，给规则起个名字、配个颜色。13 条内置规则覆盖 80% 场景。</p>
+                    </li>
+                    <li class="step">
+                        <span class="step-num">3</span>
+                        <h3>看新视图</h3>
+                        <p>侧栏出现规则视图，点哪个看哪个，新文件实时归类。原始文件夹结构？没动。</p>
+                    </li>
+                </ol>
             </div>
         </section>
 
@@ -114,6 +134,63 @@
                         <h3>原生 macOS 体验</h3>
                         <p>快速查看、多选、拖拽排序、⌘K 命令菜单、全局快捷键。完全像 Finder，但比 Finder 更懂归类。</p>
                     </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="use-cases" id="use-cases">
+            <div class="container">
+                <h2 class="section-title">适合谁用</h2>
+                <p class="section-sub">如果你的某个文件夹长这样，FileLens 大概率能救你。</p>
+                <div class="cases">
+                    <article class="case">
+                        <div class="case-emoji">📦</div>
+                        <h3>Downloads 永远爆炸</h3>
+                        <p>装机包、压缩包、PDF、随手保存的图片混在一起。FileLens 自动按类型给你分组：「安装包」、「文档」、「图片」、「最近 7 天」。</p>
+                    </article>
+                    <article class="case">
+                        <div class="case-emoji">💻</div>
+                        <h3>~/Code 项目找不到</h3>
+                        <p>一两年下来攒了几十个 repo。给「最近改过」、「Web」、「移动端」、「废弃」各起一条规则，一眼定位。</p>
+                    </article>
+                    <article class="case">
+                        <div class="case-emoji">📸</div>
+                        <h3>截图 / 录屏堆成山</h3>
+                        <p>桌面上的 `CleanShot 20...png` 上百张？规则按时间分组、按尺寸过滤大图，一边继续截一边自动归类。</p>
+                    </article>
+                    <article class="case">
+                        <div class="case-emoji">📚</div>
+                        <h3>资料库懒得整理</h3>
+                        <p>论文、电子书、教程混在 Documents 里。规则把 PDF、EPUB、Markdown 各立一栏，按修改时间排序，找到上次没看完的那本。</p>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <section class="faq">
+            <div class="container">
+                <h2 class="section-title">常见问题</h2>
+                <div class="faq-list">
+                    <details>
+                        <summary>它会移动我的文件吗？</summary>
+                        <p>不会。FileLens 只是在上层给你一个「规则视图」，原始文件物理位置一动不动。你可以随时卸载，文件夹结构跟你装之前完全一样。</p>
+                    </details>
+                    <details>
+                        <summary>跟 macOS 自带的「智能文件夹」有什么区别？</summary>
+                        <p>智能文件夹只支持搜索 Finder 已经索引到的内容，规则编辑器很弱、UI 拼凑感强。FileLens 是专门为「持续归类」设计的：规则可命名 + 配色、多文件夹独立配置、文件操作完整、新文件实时归类。</p>
+                    </details>
+                    <details>
+                        <summary>支持网络盘 / 外接硬盘吗？</summary>
+                        <p>支持。任意可挂载的目录都可以加进来。网络盘可以单独关掉「监听变化」，避免频繁 IO。</p>
+                    </details>
+                    <details>
+                        <summary>跟 Hazel、Path Finder 这些是什么关系？</summary>
+                        <p>Hazel 主打「搬走文件」（实际移动），FileLens 主打「不动文件，只是重新看」。需要硬归类用 Hazel，需要可逆 / 多视角用 FileLens。Path Finder 是 Finder 替代品，跟我们不是同一个赛道。</p>
+                    </details>
+                    <details>
+                        <summary>是开源的吗？</summary>
+                        <p>是。代码托管在 GitHub，你可以审计 / fork / 提 PR。免费 + MIT License。</p>
+                    </details>
                 </div>
             </div>
         </section>
