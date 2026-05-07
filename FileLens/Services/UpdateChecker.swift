@@ -63,9 +63,13 @@ actor UpdateChecker {
         //   2. GitHub raw(海外兜底)
         // 不走 GitHub Pages 的原因:Pages 在 custom domain 没开 HTTPS 时
         // 会 301 到 http://,ATS 拒绝 HTTPS→HTTP 降级,fetch 直接失败。
+        // GitHub repo 2026-05-07 改名为 FileLens(大写驼峰),Gitee 仍为
+        // file-lens(连字符)。GitHub 老 URL 通过仓库重定向 *目前* 仍然可达,
+        // 但官方说不保证未来一直有效;manifest URL 用一次失败就回落 GitHub
+        // API,新 URL 直接写新名字更稳。
         let manifestURLs = [
             "https://gitee.com/lifedever/file-lens/raw/main/web/api/latest.json",
-            "https://raw.githubusercontent.com/lifedever/file-lens/main/web/api/latest.json"
+            "https://raw.githubusercontent.com/lifedever/FileLens/main/web/api/latest.json"
         ]
         var manifest: Manifest?
         for str in manifestURLs {
@@ -127,7 +131,7 @@ actor UpdateChecker {
     }
 
     private func fetchFromGitHub(currentVersion: String) async -> UpdateInfo? {
-        guard let url = URL(string: "https://api.github.com/repos/lifedever/file-lens/releases/latest") else {
+        guard let url = URL(string: "https://api.github.com/repos/lifedever/FileLens/releases/latest") else {
             return nil
         }
         var req = URLRequest(url: url)
@@ -153,7 +157,7 @@ actor UpdateChecker {
         let dmgName = "FileLens-\(version)-\(arch).dmg"
         let urls = [
             URL(string: "https://gitee.com/lifedever/file-lens/releases/download/\(release.tag_name)/\(dmgName)"),
-            URL(string: "https://github.com/lifedever/file-lens/releases/download/\(release.tag_name)/\(dmgName)")
+            URL(string: "https://github.com/lifedever/FileLens/releases/download/\(release.tag_name)/\(dmgName)")
         ].compactMap { $0 }
         return UpdateInfo(
             latestTag: release.tag_name,

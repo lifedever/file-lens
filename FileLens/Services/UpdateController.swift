@@ -79,7 +79,7 @@ final class UpdateController: ObservableObject {
         let version = tag.trimmingCharacters(in: CharacterSet(charactersIn: "vV"))
         let dmgName = "FileLens-\(version)-universal.dmg"
         return [URL(string:
-            "https://github.com/lifedever/file-lens/releases/download/v\(version)/\(dmgName)")]
+            "https://github.com/lifedever/FileLens/releases/download/v\(version)/\(dmgName)")]
             .compactMap { $0 }
     }
 

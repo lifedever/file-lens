@@ -19,8 +19,8 @@ set -euo pipefail
 
 APP_NAME="FileLens"
 BUNDLE_ID="com.lifedever.FileLens"
-REPO="lifedever/file-lens"
-GITEE_REPO="lifedever/file-lens"
+REPO="lifedever/FileLens"          # GitHub repo (renamed 2026-05-07)
+GITEE_REPO="lifedever/file-lens"   # Gitee repo (unchanged)
 
 if [ $# -lt 1 ]; then
   echo "Usage: $0 <version>" >&2

@@ -286,8 +286,8 @@ private struct GeneralSettingsView: View {
 
 private struct SupportSettingsView: View {
     private static let websiteURL  = URL(string: "https://www.lifedever.com")!
-    private static let starURL     = URL(string: "https://github.com/lifedever/file-lens")!
-    private static let feedbackURL = URL(string: "https://github.com/lifedever/file-lens/issues")!
+    private static let starURL     = URL(string: "https://github.com/lifedever/FileLens")!
+    private static let feedbackURL = URL(string: "https://github.com/lifedever/FileLens/issues")!
 
     var body: some View {
         VStack(spacing: 14) {

@@ -14,7 +14,7 @@
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
 ![stars](https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square)
 
-[⬇ **下载最新版**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **赞助**](https://www.lifedever.com)
+[⬇ **下载最新版**](https://github.com/lifedever/FileLens/releases/latest) | [💖 **赞助**](https://www.lifedever.com)
 
 [English](README.md)
 
@@ -45,7 +45,7 @@
 
 ## 安装
 
-[**↓ 下载最新版 DMG**](https://github.com/lifedever/file-lens/releases/latest)
+[**↓ 下载最新版 DMG**](https://github.com/lifedever/FileLens/releases/latest)
 
 | Mac | 下载文件 |
 |---|---|
@@ -79,7 +79,7 @@ sudo xattr -rd com.apple.quarantine /Applications/FileLens.app
 
 ```bash
 brew install xcodegen librsvg
-git clone https://github.com/lifedever/file-lens.git
+git clone https://github.com/lifedever/FileLens.git
 cd file-lens
 xcodegen generate
 ./Scripts/dev.sh                       # Debug 编译并打开

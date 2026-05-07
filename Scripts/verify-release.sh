@@ -23,8 +23,8 @@ fi
 
 VERSION="$1"
 TAG="v${VERSION}"
-REPO="lifedever/file-lens"
-GITEE_REPO="lifedever/file-lens"
+REPO="lifedever/FileLens"          # GitHub repo (renamed 2026-05-07)
+GITEE_REPO="lifedever/file-lens"   # Gitee repo (unchanged)
 APP_NAME="FileLens"
 # DMGs are tiny right now (~1.6 MB) but a placeholder/empty file is
 # usually <50KB — generous floor catches obviously-wrong uploads

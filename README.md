@@ -9,12 +9,12 @@
 **A non-destructive view layer for any folder on macOS.**
 Watch any folder, group files by tags — without ever moving the originals.
 
-![Latest](https://img.shields.io/github/v/release/lifedever/file-lens?label=Latest&color=brightgreen&style=flat-square)
+![Latest](https://img.shields.io/github/v/release/lifedever/FileLens?label=Latest&color=brightgreen&style=flat-square)
 ![platform](https://img.shields.io/badge/platform-macOS%2014%2B-blue?style=flat-square)
 ![license](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-![stars](https://img.shields.io/github/stars/lifedever/file-lens?style=flat-square)
+![stars](https://img.shields.io/github/stars/lifedever/FileLens?style=flat-square)
 
-[⬇ **Download Latest**](https://github.com/lifedever/file-lens/releases/latest) | [💖 **Sponsor**](https://www.lifedever.com)
+[⬇ **Download Latest**](https://github.com/lifedever/FileLens/releases/latest) | [💖 **Sponsor**](https://www.lifedever.com)
 
 [中文文档](README.zh-CN.md)
 
@@ -45,7 +45,7 @@ Your `~/Downloads` accumulates hundreds of files — `.dmg`s, screenshots, PDFs,
 
 ## Install
 
-[**↓ Download the latest DMG**](https://github.com/lifedever/file-lens/releases/latest)
+[**↓ Download the latest DMG**](https://github.com/lifedever/FileLens/releases/latest)
 
 | Mac | File |
 |---|---|
@@ -77,7 +77,7 @@ Requirements: macOS 14+, Xcode 15+, [xcodegen](https://github.com/yonaskolb/Xcod
 
 ```bash
 brew install xcodegen librsvg
-git clone https://github.com/lifedever/file-lens.git
+git clone https://github.com/lifedever/FileLens.git
 cd file-lens
 xcodegen generate
 ./Scripts/dev.sh                       # Debug + open
