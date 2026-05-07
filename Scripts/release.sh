@@ -356,4 +356,17 @@ else
 fi
 
 echo ""
+# ── Final integrity check ─────────────────────────────
+# Hits every URL the autoupdate flow depends on, from the same network
+# release.sh just used. Catches silent failures one of the upload steps
+# might have introduced (the original v1.1.0 → Gitee miss is the canon
+# failure mode this guards against).
+echo "── Verifying release integrity ──"
+if [ -x "${PROJECT_ROOT}/Scripts/verify-release.sh" ]; then
+  "${PROJECT_ROOT}/Scripts/verify-release.sh" "${VERSION}"
+else
+  echo "  (Scripts/verify-release.sh missing — skipping; run it manually before announcing)"
+fi
+
+echo ""
 echo "Done."
