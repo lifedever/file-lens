@@ -34,13 +34,12 @@ enum UpdateService {
 
     static func checkInBackgroundIfNeeded() {
         // 用户在 设置 → 通用 中可以关掉自动检查;关闭后这里直接退出。
+        // 每次启动都跑一次 check —— 单次 HTTP 请求开销可以忽略,有更新了才弹
+        // 框,没更新就静默,体验上没成本。lastCheckKey 仍写进去给未来用。
         let auto = UserDefaults.standard.object(forKey: "filelens.autoCheckUpdate")
             as? Bool ?? true
         guard auto else { return }
-        let last = UserDefaults.standard.double(forKey: lastCheckKey)
-        let now = Date().timeIntervalSince1970
-        guard now - last > checkInterval else { return }
-        UserDefaults.standard.set(now, forKey: lastCheckKey)
+        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lastCheckKey)
 
         Task {
             let info = await UpdateChecker.shared.checkForUpdate(currentVersion: currentVersion)
@@ -54,24 +53,9 @@ enum UpdateService {
     // MARK: - Alerts
 
     private static func presentUpdateAlert(_ info: UpdateInfo) {
-        let alert = NSAlert()
-        alert.messageText = NSLocalizedString("update.available.title",
-                                              value: "Update Available",
-                                              comment: "")
-        alert.informativeText = String(format:
-            NSLocalizedString("update.available.message.format",
-                              value: "A new version %@ is available.",
-                              comment: ""), info.latestTag)
-        alert.addButton(withTitle: NSLocalizedString("update.download",
-                                                     value: "Download",
-                                                     comment: ""))
-        alert.addButton(withTitle: NSLocalizedString("Cancel",
-                                                     value: "Cancel",
-                                                     comment: ""))
-        if alert.runModal() == .alertFirstButtonReturn,
-           let url = URL(string: info.releaseURL) {
-            NSWorkspace.shared.open(url)
-        }
+        // 走自定义 SwiftUI 弹窗,可以渲染 GitHub Release 的 markdown body
+        // (changelog / 新功能列表),比 NSAlert 信息量大得多。
+        UpdateDialogPresenter.present(info, currentVersion: currentVersion)
     }
 
     private static func presentUpToDateAlert() {

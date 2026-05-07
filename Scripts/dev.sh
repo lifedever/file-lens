@@ -7,12 +7,16 @@ set -euo pipefail
 # 与正式版 (com.lifedever.FileLens) 完全隔离:bundle ID 不同 →
 # SwiftData store / UserDefaults / 偏好设置全部独立
 #
-# Usage: ./scripts/dev.sh
+# Usage:
+#   ./scripts/dev.sh                # 用 project.yml 里的 MARKETING_VERSION
+#   ./scripts/dev.sh 1.0.0          # 强制成 1.0.0(用来测"检查更新"逻辑 ——
+#                                     启动后会发现 GitHub 上有更新版,弹更新对话框)
 # ─────────────────────────────────────────────
 
 APP_NAME="FileLens"
 DEV_APP_NAME="FileLens dev"
 BUNDLE_ID="com.lifedever.FileLens.dev"
+VERSION_OVERRIDE="${1:-}"
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BUILD_DIR="${PROJECT_ROOT}/.dev-build"
@@ -53,6 +57,13 @@ PLIST="${STAGE}/Contents/Info.plist"
   || /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string ${DEV_APP_NAME}" "${PLIST}"
 /usr/libexec/PlistBuddy -c "Set :CFBundleName ${DEV_APP_NAME}" "${PLIST}" 2>/dev/null \
   || /usr/libexec/PlistBuddy -c "Add :CFBundleName string ${DEV_APP_NAME}" "${PLIST}"
+
+# 可选:把 CFBundleShortVersionString 改成传入的版本号 —— 测"检查更新"
+# 流程时把它降到 1.0.0 之类,启动就能模拟"老用户拿到新版"的体验。
+if [ -n "${VERSION_OVERRIDE}" ]; then
+  /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION_OVERRIDE}" "${PLIST}"
+  echo "  Version overridden to ${VERSION_OVERRIDE}"
+fi
 
 # 改完必须重签 —— 否则 Gatekeeper 会拒,菜单栏图标 / 通知都不工作
 codesign --force --deep --no-strict --sign - "${STAGE}" 2>&1 | grep -v 'replacing existing signature' || true

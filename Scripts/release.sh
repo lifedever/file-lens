@@ -159,5 +159,74 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
   echo "  https://github.com/${REPO}/releases/tag/${TAG}"
 fi
 
+# 写 GitHub Pages 上的 update manifest(web/api/latest.json),App 内
+# 检查更新优先打这个清单(无 API 限流,CDN 抗压),GitHub API 只做兜底。
+# Pages 部署由 .github/workflows/pages.yml 在 push 后自动跑。
+echo ""
+echo "── Updating update manifest ──"
+MANIFEST_PATH="${PROJECT_ROOT}/web/api/latest.json"
+mkdir -p "$(dirname "${MANIFEST_PATH}")"
+NOTES_RAW=""
+if [ -f "${NOTES_FILE:-}" ]; then
+  NOTES_RAW=$(cat "${NOTES_FILE}")
+fi
+python3 - <<PY > "${MANIFEST_PATH}"
+import json
+print(json.dumps({
+    "version": "${VERSION}",
+    "tag": "${TAG}",
+    "url": "https://github.com/${REPO}/releases/tag/${TAG}",
+    "dmg_url": "https://github.com/${REPO}/releases/download/${TAG}/${APP_NAME}-${VERSION}-${ARCH}.dmg",
+    "notes": """$(printf '%s' "${NOTES_RAW}" | sed -e 's/\\\\/\\\\\\\\/g' -e 's/"""/\\\\"\\\\"\\\\"/g')""",
+}, ensure_ascii=False, indent=2))
+PY
+echo "  ${MANIFEST_PATH}"
+
+read -p "Commit + push manifest to deploy via Pages? [y/N] " -n 1 -r
+echo ""
+if [[ $REPLY =~ ^[Yy]$ ]]; then
+  (
+    cd "${PROJECT_ROOT}"
+    git add web/api/latest.json
+    git commit -m "release: update manifest to ${VERSION}" 2>&1 || echo "  (nothing to commit)"
+    git push 2>&1 | tail -3 || true
+  )
+fi
+
+# Homebrew tap 同步:更新 Cask 的 version + sha256,提交并推送。
+# 跑 release.sh 时如果 HOMEBREW_TAP_PATH 指向本地 tap repo,就走自动路径;
+# 否则提示用户自己改。
+HOMEBREW_TAP_PATH="${HOMEBREW_TAP_PATH:-${HOME}/Documents/Dev/myspace/homebrew-tap}"
+HOMEBREW_CASK_PATH="${HOMEBREW_TAP_PATH}/Casks/filelens.rb"
+echo ""
+echo "── Updating Homebrew tap ──"
+if [ -f "${HOMEBREW_CASK_PATH}" ]; then
+  read -p "Update ${HOMEBREW_CASK_PATH} to ${VERSION}? [y/N] " -n 1 -r
+  echo ""
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    NEW_SHA=$(shasum -a 256 "${DMG_PATH}" | awk '{print $1}')
+    echo "  sha256: ${NEW_SHA}"
+
+    # BSD sed 用 -i '' 不写备份;Linux sed 不接受空字符串,但我们只在 macOS 用。
+    # 匹配 version "..." 和 sha256 "..." 两行,各替换一次。
+    sed -i '' \
+      -e "s|^  version \".*\"$|  version \"${VERSION}\"|" \
+      -e "s|^  sha256 \".*\"$|  sha256 \"${NEW_SHA}\"|" \
+      "${HOMEBREW_CASK_PATH}"
+
+    (
+      cd "${HOMEBREW_TAP_PATH}"
+      git add Casks/filelens.rb
+      git commit -m "filelens ${VERSION}"
+      git push
+    )
+    echo ""
+    echo "  Tap updated. Test:  brew install --cask --force lifedever/tap/filelens"
+  fi
+else
+  echo "  Skipped (no tap at ${HOMEBREW_CASK_PATH})"
+  echo "  Set HOMEBREW_TAP_PATH env var if your tap lives elsewhere."
+fi
+
 echo ""
 echo "Done."

@@ -1269,6 +1269,62 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "空格键" } }
       }
     },
+    "update.available.subtitle.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Version %@ is available — you’re on %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "新版本 %@ 已发布 —— 你当前是 %@" } }
+      }
+    },
+    "update.install" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Install Update" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安装更新" } }
+      }
+    },
+    "update.downloading.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Downloading update…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在下载更新…" } }
+      }
+    },
+    "update.ready.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update ready" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载完成" } }
+      }
+    },
+    "update.installAndRestart" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Install and Restart" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "安装并重启" } }
+      }
+    },
+    "update.download.error.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Download failed" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载失败" } }
+      }
+    },
+    "update.dmg.error.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Update package is invalid" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "更新包无效" } }
+      }
+    },
+    "update.dmg.error.message" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "The downloaded DMG could not be mounted or doesn't contain FileLens.app. Please try downloading again from the website." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "下载的 DMG 文件无法挂载或未包含 FileLens.app。请到官网重新下载。" } }
+      }
+    },
     "Renamed" : {
       "extractionState" : "manual",
       "localizations" : {
