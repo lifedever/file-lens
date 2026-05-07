@@ -26,10 +26,17 @@ actor UpdateChecker {
         let tag: String
         let url: String
         let notes: String?
-        /// 新字段:DMG 下载源优先列表(Gitee 优先 / GitHub 兜底)。
+        /// 按架构分组:assets.arm64.dmg_urls / assets.x86_64.dmg_urls。
+        /// 每个架构下是一个 URL 优先级数组(Gitee 优先 / GitHub 兜底)。
+        let assets: [String: ArchAsset]?
+        /// 兼容字段:老版本 manifest 用平铺数组(默认所有架构同一个 universal DMG)。
         let dmg_urls: [String]?
-        /// 旧字段:单一 DMG URL。新代码兼容老 manifest 只有这一个字段的情况。
+        /// 更老兼容字段:单一 URL。
         let dmg_url: String?
+    }
+
+    private struct ArchAsset: Decodable {
+        let dmg_urls: [String]
     }
 
     private struct Release: Decodable {
@@ -68,15 +75,42 @@ actor UpdateChecker {
         guard latest.compare(current, options: .numeric) == .orderedDescending else {
             return nil
         }
-        // 优先用 dmg_urls(优先级列表),缺失就回 dmg_url(单条),都没就空数组
-        let urls = (manifest.dmg_urls ?? [manifest.dmg_url].compactMap { $0 })
-            .compactMap(URL.init(string:))
+
+        // 选 URL 列表,按 fallback 优先级:
+        //   1. 新 schema:assets.<currentArch>.dmg_urls(arm64 / x86_64 各自)
+        //   2. 老 schema:平铺 dmg_urls(universal DMG)
+        //   3. 最老 schema:单一 dmg_url
+        let arch = Self.currentArch()
+        let urlStrings: [String]
+        if let archAsset = manifest.assets?[arch] {
+            urlStrings = archAsset.dmg_urls
+        } else if let flat = manifest.dmg_urls {
+            urlStrings = flat
+        } else if let single = manifest.dmg_url {
+            urlStrings = [single]
+        } else {
+            urlStrings = []
+        }
+        let urls = urlStrings.compactMap(URL.init(string:))
+
         return UpdateInfo(
             latestTag: manifest.tag,
             releaseURL: manifest.url,
             body: manifest.notes,
             downloadURLs: urls
         )
+    }
+
+    /// 当前 binary 跑在哪个架构。Universal binary 在 arm64 Mac 上跑 arm64 slice,
+    /// 在 Intel Mac 上跑 x86_64 slice,所以编译时 #if arch 判断就能反映运行时。
+    private static func currentArch() -> String {
+        #if arch(arm64)
+        return "arm64"
+        #elseif arch(x86_64)
+        return "x86_64"
+        #else
+        return "arm64"  // 兜底
+        #endif
     }
 
     private func fetchFromGitHub(currentVersion: String) async -> UpdateInfo? {
@@ -98,9 +132,10 @@ actor UpdateChecker {
         guard latest.compare(current, options: .numeric) == .orderedDescending else {
             return nil
         }
-        // GitHub API fallback:从 assets 找 universal DMG 的下载链接;只有
-        // 一条 GitHub 直链,没 mirror。
-        let dmgURL = "https://github.com/lifedever/file-lens/releases/download/\(release.tag_name)/FileLens-\(stripV(release.tag_name))-universal.dmg"
+        // GitHub API fallback:按当前架构拼 release asset 直链;只有一条 GitHub
+        // 直链,没 mirror。文件名约定 `FileLens-<version>-<arch>.dmg`。
+        let arch = Self.currentArch()
+        let dmgURL = "https://github.com/lifedever/file-lens/releases/download/\(release.tag_name)/FileLens-\(stripV(release.tag_name))-\(arch).dmg"
         let urls = [URL(string: dmgURL)].compactMap { $0 }
         return UpdateInfo(
             latestTag: release.tag_name,
