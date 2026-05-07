@@ -11,15 +11,27 @@ enum SidebarSelection: Hashable {
 private let kIconSize: CGFloat = 16
 
 struct SidebarView: View {
-    @Query(sort: \Workspace.createdAt) private var workspaces: [Workspace]
+    @Query(sort: [SortDescriptor(\Workspace.sortOrder),
+                  SortDescriptor(\Workspace.createdAt)])
+    private var workspaces: [Workspace]
     @Binding var selection: SidebarSelection?
     @Binding var selectedWorkspace: Workspace?
     let onEditRule: (Rule) -> Void
     let onDeleteRule: (Rule) -> Void
+    /// 工作区行 hover 时点 ⊕ 调用 —— 给那一行的 workspace 新建规则,
+    /// 不依赖当前 selectedWorkspace,这样 hover 加号点击立刻精准生效。
+    let onNewRule: (Workspace) -> Void
+    /// 右键 → "文件夹设置…" 调用,父页拿来打开 WorkspaceSettingsView sheet。
+    let onEditWorkspace: (Workspace) -> Void
+    /// 右键 → "立即重索引" 调用,父页让 coordinator 跑一次 reindex。
+    let onReindex: (Workspace) -> Void
     @Environment(\.modelContext) private var modelContext
 
     @State private var collapsed: Set<UUID> = []
     @State private var ruleToDelete: Rule?
+    @State private var workspaceToDelete: Workspace?
+    /// 当前被鼠标 hover 的工作区行。一次只允许一个,所以用 UUID? 而不是 Set。
+    @State private var hoveredWorkspaceID: UUID?
     /// User-visible count of items in the system Trash. Refreshed every
     /// `kTrashCountRefreshInterval` seconds — cheap directory listing,
     /// nothing recursive, hidden files skipped.
@@ -80,14 +92,26 @@ struct SidebarView: View {
                         reorderRules(in: ws, fromOffsets: source, toOffset: destination)
                     }
                 } label: {
-                    rowLabel(
-                        text: ws.name,
-                        count: ws.files.filter { $0.isPresent }.count,
-                        icon: AnyView(folderIcon(for: ws)),
-                        bold: true
-                    )
+                    workspaceRow(ws)
+                        // contextMenu 挂在 label 上,只对 workspace 行生效;若挂在
+                        // DisclosureGroup 外侧会泄漏到所有子规则的右键菜单。
+                        .contextMenu {
+                            Button("workspace.contextmenu.settings") {
+                                onEditWorkspace(ws)
+                            }
+                            Button("workspace.contextmenu.reindex") {
+                                onReindex(ws)
+                            }
+                            Divider()
+                            Button("workspace.remove…", role: .destructive) {
+                                workspaceToDelete = ws
+                            }
+                        }
                 }
                 .tag(SidebarSelection.workspace(ws.id))
+            }
+            .onMove { source, destination in
+                reorderWorkspaces(fromOffsets: source, toOffset: destination)
             }
 
             // Pinned global rows. They sit at the bottom of the list,
@@ -136,6 +160,26 @@ struct SidebarView: View {
             default:
                 break
             }
+        }
+        .confirmationDialog(
+            "workspace.remove.confirm.title",
+            isPresented: Binding(
+                get: { workspaceToDelete != nil },
+                set: { if !$0 { workspaceToDelete = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: workspaceToDelete
+        ) { ws in
+            Button("workspace.remove", role: .destructive) {
+                removeWorkspace(ws)
+                workspaceToDelete = nil
+            }
+            Button("Cancel", role: .cancel) { workspaceToDelete = nil }
+        } message: { ws in
+            Text(verbatim: String(format:
+                NSLocalizedString("workspace.remove.confirm.message.format",
+                    value: "Stop watching “%@”? Files on disk are untouched; only this folder is removed from FileLens.",
+                    comment: ""), ws.name))
         }
         .confirmationDialog(
             "delete.confirm.title",
@@ -216,6 +260,22 @@ struct SidebarView: View {
 
     // MARK: Reorder
 
+    private func reorderWorkspaces(fromOffsets source: IndexSet, toOffset destination: Int) {
+        var ordered = workspaces
+        ordered.move(fromOffsets: source, toOffset: destination)
+        // 步长 100 给手动插入留余量,跟 sortOrder doc 保持一致
+        for (idx, ws) in ordered.enumerated() {
+            ws.sortOrder = (idx + 1) * 100
+        }
+        try? modelContext.save()
+    }
+
+    private func removeWorkspace(_ ws: Workspace) {
+        if selectedWorkspace?.id == ws.id { selectedWorkspace = nil }
+        modelContext.delete(ws)
+        try? modelContext.save()
+    }
+
     private func reorderRules(in ws: Workspace, fromOffsets source: IndexSet, toOffset destination: Int) {
         // ForEach 渲染的是 visibleRules(in:)（可能被 Show Empty Rules 过滤过）
         // 所以 source / destination 是 *可见列表* 的索引。之前直接对完整
@@ -239,6 +299,89 @@ struct SidebarView: View {
     }
 
     // MARK: Row builders
+
+    /// Workspace 行:hover 时右侧的 count badge 切换成 ⊕ 按钮(像相册 App 的
+    /// 「固定」栏)。两种视觉同时挂在 ZStack 里、用 opacity 切换可见性 ——
+    /// 用 if/else 让 view 树突变会引发 _NSDetectedLayoutRecursion(hover
+    /// 触发重建,重建又重新触发 hover)。
+    @ViewBuilder
+    private func workspaceRow(_ ws: Workspace) -> some View {
+        let count = ws.files.filter { $0.isPresent }.count
+        let isHovered = hoveredWorkspaceID == ws.id
+
+        HStack(spacing: 6) {
+            iconSlot { folderIcon(for: ws) }
+            Text(verbatim: ws.effectiveName)
+                .fontWeight(.semibold)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .layoutPriority(1)   // 名字优先吃宽度,badge 不够位置时挤掉自己
+            // 递归状态的小角标 —— 让用户一眼看到 workspace 的扫描范围。
+            // 不递归时不画(默认值,无需视觉噪音);开启时显示带颜色的小箭头
+            // (无穷大或带数字的深度),点上去能去到设置里改。
+            if ws.recursive {
+                recursiveBadge(for: ws)
+            }
+            Spacer(minLength: 4)
+            ZStack(alignment: .trailing) {
+                CountBadge(count: count)
+                    .opacity((count > 0 && !isHovered) ? 1 : 0)
+                Button {
+                    onNewRule(ws)
+                } label: {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 15, weight: .regular))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+                .help("New Rule…")
+                .opacity(isHovered ? 1 : 0)
+                .allowsHitTesting(isHovered)
+            }
+        }
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            // 只在状态确实改变时写,避免无谓的 state churn。
+            if hovering {
+                if hoveredWorkspaceID != ws.id { hoveredWorkspaceID = ws.id }
+            } else if hoveredWorkspaceID == ws.id {
+                hoveredWorkspaceID = nil
+            }
+        }
+    }
+
+    /// 递归状态的小角标。无限制 → 无穷符号;有 maxDepth → 显示数字。
+    /// 鼠标悬停提示扫描范围,点击 → 文件夹设置面板。
+    @ViewBuilder
+    private func recursiveBadge(for ws: Workspace) -> some View {
+        let label: String = ws.maxDepth == 0 ? "∞" : "\(ws.maxDepth)"
+        let helpText: String = ws.maxDepth == 0
+            ? NSLocalizedString("workspace.badge.recursive.unlimited",
+                value: "Recursive · all subfolders",
+                comment: "")
+            : String(format:
+                NSLocalizedString("workspace.badge.recursive.limited.format",
+                    value: "Recursive · up to %lld levels",
+                    comment: ""),
+                Int64(ws.maxDepth))
+        Button {
+            onEditWorkspace(ws)
+        } label: {
+            HStack(spacing: 1) {
+                Image(systemName: "arrow.turn.down.right")
+                    .font(.system(size: 9, weight: .semibold))
+                Text(verbatim: label)
+                    .font(.caption2.monospacedDigit())
+            }
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(Color.secondary.opacity(0.10)))
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
+    }
 
     /// All sidebar rows share this layout: a fixed kIconSize leading slot,
     /// 6pt gap, then the text, then a trailing badge. Using an explicit HStack

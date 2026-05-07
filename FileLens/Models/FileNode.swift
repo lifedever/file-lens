@@ -16,6 +16,10 @@ final class FileNode {
     var isPresent: Bool
     var rulesEvaluatedAt: Date?
     var fileResourceID: String?     // serialized URLResourceValues.fileResourceIdentifier (for rename tracking)
+    /// 该条目是不是文件夹。true 时 ext 为空、size 为 0、kind = "folder"。
+    /// 跟 Finder 一样:文件夹也是列表里的一等条目,但内容不被展开成另一个
+    /// 视图 —— 双击在 Finder 中打开。默认 false 保持 SwiftData 迁移兼容。
+    var isDirectory: Bool = false
 
     @Relationship(deleteRule: .cascade, inverse: \FileTag.file)
     var tags: [FileTag] = []
@@ -32,7 +36,8 @@ final class FileNode {
         lastSeenAt: Date = .now,
         isPresent: Bool = true,
         rulesEvaluatedAt: Date? = nil,
-        fileResourceID: String? = nil
+        fileResourceID: String? = nil,
+        isDirectory: Bool = false
     ) {
         self.id = id
         self.relativePath = relativePath
@@ -46,5 +51,6 @@ final class FileNode {
         self.isPresent = isPresent
         self.rulesEvaluatedAt = rulesEvaluatedAt
         self.fileResourceID = fileResourceID
+        self.isDirectory = isDirectory
     }
 }

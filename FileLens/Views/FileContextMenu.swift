@@ -1,12 +1,12 @@
 import SwiftUI
 import SwiftData
-import AppKit
 
 /// Shared right-click menu for the file table and grid. All entries operate
 /// on the passed-in `files` array, so multi-selection just works.
 ///
-/// Keeping the menu here means there's one place to add or rename actions,
-/// and Table/Grid don't drift apart visually.
+/// 实际 action 列表 + 派发逻辑在 `FileActionRegistry`,Inspector 也用同一份。
+/// 这里只负责把 registry 渲染成 NSMenu(SwiftUI Button 加 keyboardShortcut
+/// 自动转 NSMenuItem keyEquivalent)。
 struct FileContextMenu: View {
     let files: [FileNode]
     let modelContext: ModelContext
@@ -15,42 +15,41 @@ struct FileContextMenu: View {
         if files.isEmpty {
             EmptyView()
         } else {
-            // 每条 Button 上挂 .keyboardShortcut,SwiftUI 会把它转成
-            // NSMenuItem 的 keyEquivalent —— 菜单右侧就出现快捷键提示,
-            // 跟 ⌘K 触发的 NSMenu 视觉一致。
-            Button("Open With Default App") { FileActions.open(files) }
-                .keyboardShortcut("o", modifiers: .command)
-            Button("Reveal in Finder") { FileActions.reveal(files) }
-                .keyboardShortcut("r", modifiers: .command)
-            Button("Quick Look") {
-                let urls = files.compactMap { FileActions.url(for: $0) }
-                if !urls.isEmpty { QuickLookCoordinator.shared.show(urls: urls) }
+            ForEach(Array(FileActionGroup.allCases.enumerated()), id: \.offset) { idx, group in
+                ForEach(group.kinds) { kind in
+                    if kind.isAvailable(for: files) {
+                        Button(role: kind.role) {
+                            kind.perform(files, modelContext: modelContext)
+                        } label: {
+                            Text(kind.titleKey)
+                        }
+                        .modifier(FileActionShortcut(kind: kind))
+                    }
+                }
+                if idx < FileActionGroup.allCases.count - 1 {
+                    Divider()
+                }
             }
-            .keyboardShortcut(.space, modifiers: [])
+        }
+    }
+}
 
-            Divider()
+/// 给每个 action 挂上键盘快捷键。SwiftUI Button 上的 `.keyboardShortcut`
+/// 在 NSMenuItem 上自动渲染成 keyEquivalent,菜单右侧就出现"⌘O"等提示。
+private struct FileActionShortcut: ViewModifier {
+    let kind: FileActionKind
 
-            Button("Copy to…") { FileActions.copyTo(files) }
-                .keyboardShortcut("c", modifiers: [.command, .shift])
-            Button("Move to…") { FileActions.moveTo(files, modelContext: modelContext) }
-                .keyboardShortcut("m", modifiers: [.command, .shift])
-            Button("Copy Path") { FileActions.copyPath(files) }
-                .keyboardShortcut("c", modifiers: [.command, .option])
-            // Rename is a single-file action — Finder's batch rename is a much
-            // larger feature than v1 needs.
-            if files.count == 1 {
-                Button("Rename…") { FileActions.rename(files[0], modelContext: modelContext) }
-                    .keyboardShortcut(.return, modifiers: [])
-            }
-            Button("Share…") { FileActions.share(files, from: nil) }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
-
-            Divider()
-
-            Button("Move to Trash", role: .destructive) {
-                FileActions.moveToTrash(files, modelContext: modelContext)
-            }
-            .keyboardShortcut(.delete, modifiers: .command)
+    func body(content: Content) -> some View {
+        switch kind {
+        case .open:        content.keyboardShortcut("o", modifiers: .command)
+        case .reveal:      content.keyboardShortcut("r", modifiers: .command)
+        case .quickLook:   content.keyboardShortcut(.space, modifiers: [])
+        case .copyTo:      content.keyboardShortcut("c", modifiers: [.command, .shift])
+        case .moveTo:      content.keyboardShortcut("m", modifiers: [.command, .shift])
+        case .copyPath:    content.keyboardShortcut("c", modifiers: [.command, .option])
+        case .rename:      content.keyboardShortcut(.return, modifiers: [])
+        case .share:       content.keyboardShortcut("s", modifiers: [.command, .shift])
+        case .moveToTrash: content.keyboardShortcut(.delete, modifiers: .command)
         }
     }
 }

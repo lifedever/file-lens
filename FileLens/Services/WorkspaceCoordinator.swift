@@ -24,6 +24,10 @@ final class WorkspaceCoordinator {
             return
         }
 
+        // workspace.watchEnabled = false 时(网络盘 / 巨大目录的兜底),
+        // 不挂 FSEvents 监听,只在用户手动刷新时再扫一次。
+        guard workspace.watchEnabled else { return }
+
         let (folderURL, _) = (try? BookmarkStore.resolve(bookmark: workspace.bookmarkData)) ?? (URL(fileURLWithPath: "/"), false)
         let w = FolderWatcher()
         watcher = w
@@ -37,6 +41,16 @@ final class WorkspaceCoordinator {
                     print("Re-scan failed: \(error)")
                 }
             }
+        }
+    }
+
+    /// 手动触发一次 rescan(右键 → 立即重索引)。
+    func reindex(workspace: Workspace) async {
+        let indexer = FileIndexer(container: container)
+        do {
+            try await indexer.scan(workspace: workspace)
+        } catch {
+            print("Manual reindex failed: \(error)")
         }
     }
 

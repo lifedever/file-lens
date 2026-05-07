@@ -33,6 +33,10 @@ enum UpdateService {
     }
 
     static func checkInBackgroundIfNeeded() {
+        // 用户在 设置 → 通用 中可以关掉自动检查;关闭后这里直接退出。
+        let auto = UserDefaults.standard.object(forKey: "filelens.autoCheckUpdate")
+            as? Bool ?? true
+        guard auto else { return }
         let last = UserDefaults.standard.double(forKey: lastCheckKey)
         let now = Date().timeIntervalSince1970
         guard now - last > checkInterval else { return }

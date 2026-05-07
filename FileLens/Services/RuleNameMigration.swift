@@ -47,3 +47,49 @@ enum RuleNameMigration {
         defaults.set(true, forKey: migratedKey)
     }
 }
+
+/// Workspace sortOrder 迁移:1.0.2 之前的工作区只有 createdAt,新加的字段
+/// 默认值是 0。第一次启动时按 createdAt 升序赋值 100 / 200 / 300…,后续
+/// 拖拽行为就有了一个可预测的基底。
+@MainActor
+enum WorkspaceSortOrderMigration {
+    private static let migratedKey = "filelens.workspaceSortOrderMigrated.v1"
+
+    static func runIfNeeded(container: ModelContainer) {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: migratedKey) else { return }
+        let context = ModelContext(container)
+        if let workspaces = try? context.fetch(
+            FetchDescriptor<Workspace>(sortBy: [SortDescriptor(\.createdAt)])
+        ), !workspaces.isEmpty,
+           workspaces.allSatisfy({ $0.sortOrder == 0 }) {
+            for (idx, ws) in workspaces.enumerated() {
+                ws.sortOrder = (idx + 1) * 100
+            }
+            try? context.save()
+        }
+        defaults.set(true, forKey: migratedKey)
+    }
+}
+
+/// 1.0.2 引入了 per-workspace `recursive` 字段,默认值 `false`。但老用户的
+/// workspace 之前一直是全量递归扫描的,新默认值会让他们的"工作区里突然变
+/// 少了文件"。这里第一次启动时把所有现有 workspace 标记成 `recursive = true`,
+/// 保留旧行为;之后用户可在 workspace 设置里改。
+@MainActor
+enum WorkspaceRecursiveMigration {
+    private static let migratedKey = "filelens.workspaceRecursiveMigrated.v1"
+
+    static func runIfNeeded(container: ModelContainer) {
+        let defaults = UserDefaults.standard
+        guard !defaults.bool(forKey: migratedKey) else { return }
+        let context = ModelContext(container)
+        if let workspaces = try? context.fetch(FetchDescriptor<Workspace>()) {
+            for ws in workspaces {
+                ws.recursive = true
+            }
+            try? context.save()
+        }
+        defaults.set(true, forKey: migratedKey)
+    }
+}

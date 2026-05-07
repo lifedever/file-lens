@@ -34,10 +34,10 @@ Your `~/Downloads` accumulates hundreds of files — `.dmg`s, screenshots, PDFs,
 
 ## Features
 
-- 🏷 **Auto-tag** — 13 built-in rules (Installers / Images / Screenshots / Large files / Stale…) plus your own custom rules
-- 📁 **Multi-folder workspaces** — watch any number of folders, each with its own rule set
+- 🏷 **Auto-tag** — 14 built-in rules (Folders / Installers / Images / Screenshots / Large files / Stale…) plus your own custom rules
+- 📁 **Multi-folder** — watch any number of folders, each with its own rule set; right-click any folder for per-folder recursion / depth / exclusion settings
 - ⚡ **Live FSEvents updates** — new downloads appear instantly with the right tags
-- 🔍 **Three view modes** — icon (⌘1), list (⌘2 with date grouping), gallery (⌘4)
+- 🔍 **Two view modes** — icon (⌘1, with size slider in the status bar), list (⌘2 with date grouping)
 - 👁 **Native interactions** — Quick Look (Space), drag-out, Reveal in Finder (⌘R), Move to Trash (⌘⌫)
 - 🎨 **Native macOS feel** — system file icons, Finder-aligned shortcuts, Light / Dark / System
 - 🌐 **English + 简体中文** out of the box
@@ -68,7 +68,7 @@ sudo xattr -rd com.apple.quarantine /Applications/FileLens.app
 | Move to Trash | `⌘⌫` |
 | Toggle Inspector | `⌘I` |
 | Search | `⌘F` |
-| Switch view (icon / list / gallery) | `⌘1` / `⌘2` / `⌘4` |
+| Switch view (icon / list) | `⌘1` / `⌘2` |
 | Settings | `⌘,` |
 
 ## Build from source

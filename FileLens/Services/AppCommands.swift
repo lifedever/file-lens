@@ -86,11 +86,17 @@ struct FileLensCommands: Commands {
             }
         }
 
-        // Drops a "Show Empty Rules" toggle into the View menu, alongside
-        // the system-provided "Show/Hide Sidebar" item.
+        // 在 View 菜单 sidebar 项之后插一个 "Show Empty Rules" 开关。
+        // 必须包在 Section 里 —— 否则它会跟系统的 "Enter Full Screen"
+        // (后者带 image 在 leading 列)挤在同一 NSMenu state-column 段
+        // 里,checkmark 列宽和 image 列宽不一致,文本起始位置就对不齐。
+        // Section 等价于强制插一个 NSMenuItem.separator,让我们的开关
+        // 单独成段,自己的 state-column 自己算对齐,跟系统项互不干扰。
         CommandGroup(after: .sidebar) {
-            Toggle(isOn: $showEmptyRules) {
-                Text("Show Empty Rules")
+            Section {
+                Toggle(isOn: $showEmptyRules) {
+                    Text("Show Empty Rules")
+                }
             }
         }
     }

@@ -4,6 +4,9 @@
 
 # Xcode
 build/
+.dev-build/
+.release/
+.test-build/
 DerivedData/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/xcuserdata/

@@ -37,6 +37,32 @@ enum FileActions {
 
     @MainActor
     static func moveToTrash(_ files: [FileNode], modelContext: ModelContext) {
+        guard !files.isEmpty else { return }
+
+        // 移到废纸篓不是不可逆的(系统废纸篓可以恢复),但用户键盘误触
+        // ⌘Delete 时常会出戏。模仿 Finder,先弹一个 NSAlert 确认。
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        if files.count == 1, let only = files.first {
+            alert.messageText = String(format:
+                NSLocalizedString("trash.confirm.title.single.format",
+                    value: "Move “%@” to the Trash?", comment: ""),
+                only.name)
+        } else {
+            alert.messageText = String(format:
+                NSLocalizedString("trash.confirm.title.multi.format",
+                    value: "Move %lld items to the Trash?", comment: ""),
+                Int64(files.count))
+        }
+        alert.informativeText = NSLocalizedString("trash.confirm.body",
+            value: "You can restore them from the Trash later.",
+            comment: "")
+        alert.addButton(withTitle: NSLocalizedString("Move to Trash",
+            value: "Move to Trash", comment: ""))
+        alert.addButton(withTitle: NSLocalizedString("Cancel",
+            value: "Cancel", comment: ""))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+
         var errors: [Error] = []
         var moved = 0
         for f in files {
@@ -111,7 +137,20 @@ enum FileActions {
         let pb = NSPasteboard.general
         pb.clearContents()
         pb.setString(paths.joined(separator: "\n"), forType: .string)
-        ToastCenter.shared.success(NSLocalizedString("Path copied", value: "Path copied", comment: ""))
+
+        // 单文件:在 toast 里直接把路径秀出来 —— 用 ~ 缩写 home 目录,
+        // 显示更友好(/Users/foo/Downloads/x → ~/Downloads/x)。
+        // 多文件:路径太长不适合塞 toast,只显示数量。
+        let toast: String
+        if paths.count == 1 {
+            let abbrev = (paths[0] as NSString).abbreviatingWithTildeInPath
+            toast = String(format: NSLocalizedString("path.copied.single.format",
+                value: "Path copied: %@", comment: ""), abbrev)
+        } else {
+            toast = String(format: NSLocalizedString("path.copied.multi.format",
+                value: "Copied %lld paths", comment: ""), Int64(paths.count))
+        }
+        ToastCenter.shared.success(toast)
     }
 
     // MARK: - Rename

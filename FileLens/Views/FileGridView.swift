@@ -7,13 +7,23 @@ struct FileGridView: View {
     @Binding var selection: Set<UUID>
     @Environment(\.modelContext) private var modelContext
 
-    private let columns = [GridItem(.adaptive(minimum: 110, maximum: 160), spacing: 12)]
+    /// 由状态栏右下的滑块驱动,跨视图实例持久化(AppStorage)。
+    /// 48~160 是合理的图标尺寸区间:48 ≈ Finder "图标小"档,160 ≈ "巨大"档。
+    @AppStorage("filelens.gridIconSize") private var iconSize: Double = 80
+
+    /// adaptive minimum 基于 iconSize + 文字行 + padding。
+    /// maximum 给一点宽度浮动让 GridItem 能整齐排列。
+    private var columns: [GridItem] {
+        let cell = iconSize + 30
+        return [GridItem(.adaptive(minimum: cell, maximum: cell + 50), spacing: 12)]
+    }
 
     var body: some View {
         ScrollView {
             LazyVGrid(columns: columns, spacing: 12) {
                 ForEach(files) { file in
-                    FileGridItem(file: file, isSelected: selection.contains(file.id))
+                    FileGridItem(file: file, isSelected: selection.contains(file.id),
+                                 iconSize: iconSize)
                         .simultaneousGesture(
                             TapGesture(count: 2).onEnded { FileActions.open(file) }
                         )
@@ -61,6 +71,7 @@ struct FileGridView: View {
 private struct FileGridItem: View {
     let file: FileNode
     let isSelected: Bool
+    let iconSize: Double
 
     var body: some View {
         VStack(spacing: 6) {
@@ -68,13 +79,13 @@ private struct FileGridItem: View {
                 .resizable()
                 .interpolation(.high)
                 .scaledToFit()
-                .frame(width: 80, height: 80)
+                .frame(width: iconSize, height: iconSize)
             Text(file.name)
                 .lineLimit(2)
                 .truncationMode(.middle)
                 .font(.caption)
                 .multilineTextAlignment(.center)
-                .frame(maxWidth: 130)
+                .frame(maxWidth: iconSize + 50)
         }
         .padding(6)
         .background(
@@ -84,9 +95,7 @@ private struct FileGridItem: View {
     }
 
     private var systemIcon: NSImage {
-        if let url = FileActions.url(for: file) {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        return NSWorkspace.shared.icon(for: .data)
+        // 走扩展名缓存,避免每个 grid item 都同步命中 Launch Services
+        FileIconCache.icon(for: file)
     }
 }
