@@ -154,48 +154,113 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 fi
 
 # ── Gitee Mirror ─────────────────────────────────────
+# History: v1.1.0 was uploaded only to GitHub because every Gitee step
+# below used `|| true` and `curl -s ... > /dev/null`, so a missing
+# remote / failed API call swallowed silently. The manifest then
+# pointed users at dead Gitee URLs. Each step now exits hard on error.
 GITEE_OK=0
 if [ -n "${GITEE_TOKEN:-}" ]; then
   echo ""
   echo "── Pushing to Gitee (${GITEE_REPO}) ──"
-  if git remote get-url gitee >/dev/null 2>&1; then
-    (git push gitee main 2>&1 | tail -3 || true)
-    (git push gitee "${TAG}" 2>&1 | tail -3 || true)
+  if ! git remote get-url gitee >/dev/null 2>&1; then
+    echo "❌ gitee remote not configured. Run:" >&2
+    echo "   git remote add gitee git@gitee.com:${GITEE_REPO}.git" >&2
+    exit 1
   fi
-  RESP=$(curl -s -X POST \
+  git push gitee main
+  git push gitee "${TAG}"
+
+  # Build the create-release JSON via python3 so the notes body (with
+  # newlines, quotes, markdown) is escaped correctly. Falls back to a
+  # GitHub link if no notes file exists for this tag.
+  CREATE_PAYLOAD=$(mktemp)
+  NOTES_FILE_REL="${NOTES_FILE}" \
+  TAG_REL="${TAG}" \
+  REPO_REL="${REPO}" \
+  APP_NAME_REL="${APP_NAME}" \
+  GITEE_TOKEN_REL="${GITEE_TOKEN}" \
+    python3 - <<'PY' > "${CREATE_PAYLOAD}"
+import json, os
+notes_path = os.environ['NOTES_FILE_REL']
+tag = os.environ['TAG_REL']
+repo = os.environ['REPO_REL']
+body = (open(notes_path).read()
+        if os.path.exists(notes_path)
+        else f"See https://github.com/{repo}/releases/tag/{tag}")
+print(json.dumps({
+    'access_token': os.environ['GITEE_TOKEN_REL'],
+    'tag_name': tag,
+    'name': f"{os.environ['APP_NAME_REL']} {tag}",
+    'body': body,
+    'target_commitish': 'main',
+}))
+PY
+  CREATE_BODY=$(mktemp)
+  CREATE_CODE=$(curl -sS -o "${CREATE_BODY}" -w "%{http_code}" -X POST \
     "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases" \
     -H "Content-Type: application/json" \
-    -d "{
-      \"access_token\": \"${GITEE_TOKEN}\",
-      \"tag_name\": \"${TAG}\",
-      \"name\": \"${APP_NAME} ${TAG}\",
-      \"body\": \"See https://github.com/${REPO}/releases/tag/${TAG}\",
-      \"target_commitish\": \"main\"
-    }")
-  GITEE_ID=$(echo "$RESP" \
-    | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null \
-    || true)
-  # 已存在的 release 也能拿 id —— Gitee 的 API 行为是创建已有 tag 的 release 时
-  # 返回现有 release 数据。但有时返回错误,这里再补一次按 tag 查询。
+    --data-binary @"${CREATE_PAYLOAD}")
+  rm -f "${CREATE_PAYLOAD}"
+  GITEE_ID=$(python3 -c "import sys,json; print(json.load(open('${CREATE_BODY}')).get('id',''))" 2>/dev/null || true)
+
+  # Re-running release.sh for an existing tag: create returns an error,
+  # but the release does exist — look it up by tag and PATCH the body
+  # so the notes stay in sync with what we ship.
   if [ -z "${GITEE_ID}" ] || [ "${GITEE_ID}" = "None" ]; then
-    GITEE_ID=$(curl -s "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" \
+    GITEE_ID=$(curl -sS "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/tags/${TAG}?access_token=${GITEE_TOKEN}" \
       | python3 -c "import sys,json; print(json.load(sys.stdin).get('id',''))" 2>/dev/null || true)
+    if [ -n "${GITEE_ID}" ] && [ "${GITEE_ID}" != "None" ] && [ -f "${NOTES_FILE}" ]; then
+      PATCH_PAYLOAD=$(mktemp)
+      NOTES_FILE_REL="${NOTES_FILE}" \
+      TAG_REL="${TAG}" \
+      APP_NAME_REL="${APP_NAME}" \
+      GITEE_TOKEN_REL="${GITEE_TOKEN}" \
+        python3 - <<'PY' > "${PATCH_PAYLOAD}"
+import json, os
+print(json.dumps({
+    'access_token': os.environ['GITEE_TOKEN_REL'],
+    'tag_name': os.environ['TAG_REL'],
+    'name': f"{os.environ['APP_NAME_REL']} {os.environ['TAG_REL']}",
+    'body': open(os.environ['NOTES_FILE_REL']).read(),
+}))
+PY
+      curl -sS -o /dev/null -X PATCH \
+        "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/${GITEE_ID}" \
+        -H "Content-Type: application/json" \
+        --data-binary @"${PATCH_PAYLOAD}"
+      rm -f "${PATCH_PAYLOAD}"
+      echo "  (Gitee release already existed — body patched with notes)"
+    fi
   fi
-  if [ -n "${GITEE_ID}" ] && [ "${GITEE_ID}" != "None" ]; then
-    for DMG in "${ARM64_DMG}" "${X86_64_DMG}"; do
-      echo "  Uploading $(basename ${DMG})..."
-      curl -s -X POST \
-        "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/${GITEE_ID}/attach_files" \
-        -H "Content-Type: multipart/form-data" \
-        -F "access_token=${GITEE_TOKEN}" \
-        -F "file=@${DMG}" > /dev/null
-    done
-    GITEE_OK=1
-    echo "  https://gitee.com/${GITEE_REPO}/releases/tag/${TAG}"
-  else
-    echo "  Warning: Gitee release id resolve failed"
-    echo "  Response: ${RESP}"
+
+  if [ -z "${GITEE_ID}" ] || [ "${GITEE_ID}" = "None" ]; then
+    echo "❌ Could not resolve Gitee release id for ${TAG}" >&2
+    echo "   Create-release HTTP ${CREATE_CODE}, body:" >&2
+    cat "${CREATE_BODY}" >&2; echo "" >&2
+    rm -f "${CREATE_BODY}"
+    exit 1
   fi
+  rm -f "${CREATE_BODY}"
+  echo "  Gitee release id: ${GITEE_ID}"
+
+  for DMG in "${ARM64_DMG}" "${X86_64_DMG}"; do
+    NAME=$(basename "${DMG}")
+    echo "  Uploading ${NAME}..."
+    UP_BODY=$(mktemp)
+    UP_CODE=$(curl -sS -o "${UP_BODY}" -w "%{http_code}" -X POST \
+      "https://gitee.com/api/v5/repos/${GITEE_REPO}/releases/${GITEE_ID}/attach_files" \
+      -F "access_token=${GITEE_TOKEN}" \
+      -F "file=@${DMG}")
+    if [ "${UP_CODE}" != "200" ] && [ "${UP_CODE}" != "201" ]; then
+      echo "❌ Gitee upload failed for ${NAME} (HTTP ${UP_CODE})" >&2
+      cat "${UP_BODY}" >&2; echo "" >&2
+      rm -f "${UP_BODY}"
+      exit 1
+    fi
+    rm -f "${UP_BODY}"
+  done
+  GITEE_OK=1
+  echo "  https://gitee.com/${GITEE_REPO}/releases/tag/${TAG}"
 else
   echo ""
   echo "  (Gitee mirror disabled — set GITEE_TOKEN env to enable)"
