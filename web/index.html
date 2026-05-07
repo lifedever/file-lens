@@ -1,16 +1,36 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-lang="zh">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FileLens — 为文件夹加一层非破坏性的规则视图</title>
-    <meta name="description" content="为任意文件夹自动归类，永远不动你的原始文件。免费开源的 macOS 工具。">
+    <title data-i18n="meta.title">FileLens — 为文件夹加一层非破坏性的规则视图</title>
+    <meta name="description" data-i18n-attr="content:meta.description" content="给任意文件夹自动归类，不碰原始文件。免费开源的 macOS 工具。">
     <meta property="og:title" content="FileLens">
-    <meta property="og:description" content="为任意文件夹自动归类，永远不动你的原始文件。">
+    <meta property="og:description" data-i18n-attr="content:meta.og_description" content="给任意文件夹自动归类，不碰原始文件。">
     <meta property="og:image" content="appicon.png">
+    <meta name="theme-color" content="#fafbfc" media="(prefers-color-scheme: light)">
+    <meta name="theme-color" content="#0c0d10" media="(prefers-color-scheme: dark)">
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="appicon.png">
     <link rel="stylesheet" href="style.css">
+    <script>
+        // Boot before paint: apply persisted theme + language so there's no
+        // flash of the default theme / wrong language on reload.
+        (function () {
+            try {
+                var savedTheme = localStorage.getItem('theme');
+                var sysTheme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+                var theme = (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : sysTheme;
+                document.documentElement.setAttribute('data-theme', theme);
+
+                var savedLang = localStorage.getItem('lang');
+                var sysLang = (navigator.language || 'zh').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en';
+                var lang = (savedLang === 'zh' || savedLang === 'en') ? savedLang : sysLang;
+                document.documentElement.setAttribute('data-lang', lang);
+                document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+            } catch (e) { /* localStorage unavailable in private mode etc. */ }
+        })();
+    </script>
 </head>
 <body>
     <header class="site-header">
@@ -20,11 +40,19 @@
                 <span>FileLens</span>
             </a>
             <div class="nav-links">
-                <a href="#features">功能</a>
-                <a href="#use-cases">场景</a>
-                <a href="#screenshots">截图</a>
+                <a href="#features" data-i18n="nav.features">功能</a>
+                <a href="#use-cases" data-i18n="nav.cases">场景</a>
+                <a href="#screenshots" data-i18n="nav.screenshots">截图</a>
+                <a href="#donate" data-i18n="nav.donate">捐赠</a>
                 <a href="https://github.com/lifedever/file-lens" target="_blank" rel="noopener">GitHub</a>
-                <a href="https://github.com/lifedever/file-lens/releases/latest" class="btn btn-primary" target="_blank" rel="noopener">下载</a>
+                <button class="icon-btn" id="lang-toggle" type="button" aria-label="Switch language">
+                    <span id="lang-toggle-label">EN</span>
+                </button>
+                <button class="icon-btn" id="theme-toggle" type="button" aria-label="Toggle theme">
+                    <svg class="icon-moon" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                    <svg class="icon-sun" viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10zm0-5a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0V3a1 1 0 0 1 1-1zm0 17a1 1 0 0 1 1 1v2a1 1 0 1 1-2 0v-2a1 1 0 0 1 1-1zM4.22 4.22a1 1 0 0 1 1.42 0l1.41 1.41a1 1 0 1 1-1.41 1.42L4.22 5.64a1 1 0 0 1 0-1.42zm12.73 12.73a1 1 0 0 1 1.42 0l1.41 1.41a1 1 0 1 1-1.41 1.42l-1.42-1.41a1 1 0 0 1 0-1.42zM2 12a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2H3a1 1 0 0 1-1-1zm17 0a1 1 0 0 1 1-1h2a1 1 0 1 1 0 2h-2a1 1 0 0 1-1-1zM5.64 18.36a1 1 0 0 1 0-1.41l1.41-1.42a1 1 0 1 1 1.42 1.42l-1.41 1.41a1 1 0 0 1-1.42 0zm12.73-12.72a1 1 0 0 1 0-1.42l1.41-1.41a1 1 0 1 1 1.42 1.41l-1.42 1.42a1 1 0 0 1-1.41 0z"/></svg>
+                </button>
+                <a href="https://github.com/lifedever/file-lens/releases/latest" class="btn btn-primary" target="_blank" rel="noopener" data-i18n="nav.download">下载</a>
             </div>
         </nav>
     </header>
@@ -35,38 +63,38 @@
                 <img src="appicon.png" width="128" height="128" alt="FileLens" class="hero-icon">
                 <h1>FileLens</h1>
                 <p class="tagline">
-                    为任意文件夹加一层非破坏性的规则视图<br>
-                    <span class="muted">文件物理位置不变，FileLens 只是按规则重新组织展示。</span>
+                    <span data-i18n="hero.tagline_main">为任意文件夹加一层非破坏性的规则视图</span><br>
+                    <span class="muted" data-i18n="hero.tagline_muted">文件位置不变，按规则重新组织展示。</span>
                 </p>
                 <div class="cta">
                     <a href="https://github.com/lifedever/file-lens/releases/latest"
-                       class="btn btn-primary btn-lg" target="_blank" rel="noopener">
+                       class="btn btn-primary btn-lg" target="_blank" rel="noopener" data-i18n="hero.cta">
                         下载 macOS 版
                     </a>
                 </div>
-                <p class="meta">免费开源 · macOS 14.0+ · Apple Silicon &amp; Intel</p>
+                <p class="meta" data-i18n="hero.meta">免费开源 · macOS 14.0+ · Apple Silicon &amp; Intel</p>
             </div>
         </section>
 
         <section class="how">
             <div class="container">
-                <h2 class="section-title">三步开始用</h2>
-                <p class="section-sub">不动你的文件，只是把它们重新看一遍。</p>
+                <h2 class="section-title" data-i18n="how.title">三步开始用</h2>
+                <p class="section-sub" data-i18n="how.sub">不碰文件，只是换个方式看。</p>
                 <ol class="steps">
                     <li class="step">
                         <span class="step-num">1</span>
-                        <h3>选文件夹</h3>
-                        <p>把 Downloads、Desktop、~/Code 这些经常乱的文件夹拖进来，几个都行。</p>
+                        <h3 data-i18n="how.s1.title">选文件夹</h3>
+                        <p data-i18n="how.s1.desc">把 Downloads、Desktop、~/Code 这些经常乱的文件夹拖进来。几个都行。</p>
                     </li>
                     <li class="step">
                         <span class="step-num">2</span>
-                        <h3>写规则（或用内置的）</h3>
-                        <p>按扩展名 / 名称 / 大小 / 时间，给规则起个名字、配个颜色。13 条内置规则覆盖 80% 场景。</p>
+                        <h3 data-i18n="how.s2.title">写规则（或用内置的）</h3>
+                        <p data-i18n="how.s2.desc">按扩展名、名称、大小或时间定义规则，起个名字，配个颜色。14 条内置规则覆盖大部分场景。</p>
                     </li>
                     <li class="step">
                         <span class="step-num">3</span>
-                        <h3>看新视图</h3>
-                        <p>侧栏出现规则视图，点哪个看哪个，新文件实时归类。原始文件夹结构？没动。</p>
+                        <h3 data-i18n="how.s3.title">看新视图</h3>
+                        <p data-i18n="how.s3.desc">侧栏出现规则视图，点哪个看哪个，新文件实时归类。原始文件夹结构没动。</p>
                     </li>
                 </ol>
             </div>
@@ -74,7 +102,7 @@
 
         <section class="screenshots" id="screenshots">
             <div class="container">
-                <h2 class="section-title">看看它在做什么</h2>
+                <h2 class="section-title" data-i18n="shots.title">看看它在做什么</h2>
                 <div class="slideshow" data-autoplay="6000">
                     <div class="slides" id="slides">
                         <figure>
@@ -104,35 +132,35 @@
 
         <section class="features" id="features">
             <div class="container">
-                <h2 class="section-title">为什么选 FileLens</h2>
+                <h2 class="section-title" data-i18n="features.title">为什么选 FileLens</h2>
                 <div class="feature-grid">
                     <article class="feature">
                         <div class="feature-icon" style="--tint:#3B82F6">
                             <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M12 2L4 5v6c0 5 3.4 9.4 8 11 4.6-1.6 8-6 8-11V5l-8-3z"/></svg>
                         </div>
-                        <h3>非破坏性视图</h3>
-                        <p>文件位置不变，FileLens 只是按规则在上层重新组织。卸载随时可以，原始文件夹结构丝毫不动。</p>
+                        <h3 data-i18n="features.f1.title">非破坏性视图</h3>
+                        <p data-i18n="features.f1.desc">文件位置不变，按规则在上层重新组织。卸载后文件夹原样不动。</p>
                     </article>
                     <article class="feature">
                         <div class="feature-icon" style="--tint:#F59E0B">
                             <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M21.4 11.6L12.4 2.6c-.4-.4-.9-.6-1.4-.6H4C2.9 2 2 2.9 2 4v7c0 .5.2 1 .6 1.4l9 9c.8.8 2 .8 2.8 0l7-7c.8-.8.8-2 0-2.8zM6.5 8C5.7 8 5 7.3 5 6.5S5.7 5 6.5 5 8 5.7 8 6.5 7.3 8 6.5 8z"/></svg>
                         </div>
-                        <h3>智能自动归类</h3>
-                        <p>按扩展名、名称、大小、日期定义规则，文件到来时实时归类。13 条内置规则覆盖常见场景，开箱即用。</p>
+                        <h3 data-i18n="features.f2.title">智能自动归类</h3>
+                        <p data-i18n="features.f2.desc">按扩展名、名称、大小、日期定义规则，新文件实时归类。14 条内置规则，覆盖常见场景。</p>
                     </article>
                     <article class="feature">
                         <div class="feature-icon" style="--tint:#10B981">
                             <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>
                         </div>
-                        <h3>多文件夹支持</h3>
-                        <p>Downloads、Desktop、Documents…… 任意文件夹都可以加进来,每个文件夹有独立的规则集合。</p>
+                        <h3 data-i18n="features.f3.title">多文件夹支持</h3>
+                        <p data-i18n="features.f3.desc">Downloads、Desktop、Documents……任意文件夹都可以加进来，每个文件夹有独立的规则集。</p>
                     </article>
                     <article class="feature">
                         <div class="feature-icon" style="--tint:#EC4899">
                             <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M9 7H7v2H5V7H3V5h2V3h2v2h2v2zm9 0h-2V5h-2v2h-2v2h2v2h2V9h2V7zm-3 8c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm-7 0c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
                         </div>
-                        <h3>原生 macOS 体验</h3>
-                        <p>快速查看、多选、拖拽排序、⌘K 命令菜单、全局快捷键。完全像 Finder，但比 Finder 更懂归类。</p>
+                        <h3 data-i18n="features.f4.title">原生 macOS 体验</h3>
+                        <p data-i18n="features.f4.desc">快速查看、多选、拖拽排序、⌘K 命令菜单、全局快捷键。像 Finder，但更懂归类。</p>
                     </article>
                 </div>
             </div>
@@ -140,28 +168,28 @@
 
         <section class="use-cases" id="use-cases">
             <div class="container">
-                <h2 class="section-title">适合谁用</h2>
-                <p class="section-sub">如果你的某个文件夹长这样，FileLens 大概率能救你。</p>
+                <h2 class="section-title" data-i18n="cases.title">适合谁用</h2>
+                <p class="section-sub" data-i18n="cases.sub">如果你的某个文件夹长这样，FileLens 大概率能救你。</p>
                 <div class="cases">
                     <article class="case">
                         <div class="case-emoji">📦</div>
-                        <h3>Downloads 永远爆炸</h3>
-                        <p>装机包、压缩包、PDF、随手保存的图片混在一起。FileLens 自动按类型给你分组：「安装包」、「文档」、「图片」、「最近 7 天」。</p>
+                        <h3 data-i18n="cases.c1.title">Downloads 永远爆炸</h3>
+                        <p data-i18n="cases.c1.desc">装机包、压缩包、PDF、随手保存的图片混在一起。FileLens 按类型自动分组：「安装包」、「文档」、「图片」、「最近 7 天」。</p>
                     </article>
                     <article class="case">
                         <div class="case-emoji">💻</div>
-                        <h3>~/Code 项目找不到</h3>
-                        <p>一两年下来攒了几十个 repo。给「最近改过」、「Web」、「移动端」、「废弃」各起一条规则，一眼定位。</p>
+                        <h3 data-i18n="cases.c2.title">~/Code 项目找不到</h3>
+                        <p data-i18n="cases.c2.desc">一两年攒了几十个 repo。给「最近改过」、「Web」、「移动端」、「废弃」各起一条规则，一眼定位。</p>
                     </article>
                     <article class="case">
                         <div class="case-emoji">📸</div>
-                        <h3>截图 / 录屏堆成山</h3>
-                        <p>桌面上的 `CleanShot 20...png` 上百张？规则按时间分组、按尺寸过滤大图，一边继续截一边自动归类。</p>
+                        <h3 data-i18n="cases.c3.title">截图 / 录屏堆成山</h3>
+                        <p data-i18n="cases.c3.desc">桌面上 `CleanShot 20...png` 上百张？按时间分组、按尺寸过滤大图，一边截图一边自动归类。</p>
                     </article>
                     <article class="case">
                         <div class="case-emoji">📚</div>
-                        <h3>资料库懒得整理</h3>
-                        <p>论文、电子书、教程混在 Documents 里。规则把 PDF、EPUB、Markdown 各立一栏，按修改时间排序，找到上次没看完的那本。</p>
+                        <h3 data-i18n="cases.c4.title">资料库懒得整理</h3>
+                        <p data-i18n="cases.c4.desc">论文、电子书、教程混在 Documents 里。PDF、EPUB、Markdown 各立一栏，按修改时间排序，找到上次没看完的那本。</p>
                     </article>
                 </div>
             </div>
@@ -169,41 +197,41 @@
 
         <section class="faq">
             <div class="container">
-                <h2 class="section-title">常见问题</h2>
+                <h2 class="section-title" data-i18n="faq.title">常见问题</h2>
                 <div class="faq-list">
                     <details>
-                        <summary>它会移动我的文件吗？</summary>
-                        <p>不会。FileLens 只是在上层给你一个「规则视图」，原始文件物理位置一动不动。你可以随时卸载，文件夹结构跟你装之前完全一样。</p>
+                        <summary data-i18n="faq.q1">它会移动我的文件吗？</summary>
+                        <p data-i18n="faq.a1">不会。FileLens 只是在上层提供一个规则视图，原始文件位置不动。卸载后文件夹结构和你安装前完全一样。</p>
                     </details>
                     <details>
-                        <summary>跟 macOS 自带的「智能文件夹」有什么区别？</summary>
-                        <p>智能文件夹只支持搜索 Finder 已经索引到的内容，规则编辑器很弱、UI 拼凑感强。FileLens 是专门为「持续归类」设计的：规则可命名 + 配色、多文件夹独立配置、文件操作完整、新文件实时归类。</p>
+                        <summary data-i18n="faq.q2">跟 macOS 自带的「智能文件夹」有什么区别？</summary>
+                        <p data-i18n="faq.a2">智能文件夹只搜索 Finder 索引到的内容，规则编辑器弱，UI 拼凑。FileLens 为持续归类设计：规则可命名、配色，多文件夹独立配置，文件操作完整，新文件实时归类。</p>
                     </details>
                     <details>
-                        <summary>支持网络盘 / 外接硬盘吗？</summary>
-                        <p>支持。任意可挂载的目录都可以加进来。网络盘可以单独关掉「监听变化」，避免频繁 IO。</p>
+                        <summary data-i18n="faq.q3">支持网络盘 / 外接硬盘吗？</summary>
+                        <p data-i18n="faq.a3">支持。任意可挂载的目录都可以加进来。网络盘可以单独关掉监听变化，避免频繁 IO。</p>
                     </details>
                     <details>
-                        <summary>跟 Hazel、Path Finder 这些是什么关系？</summary>
-                        <p>Hazel 主打「搬走文件」（实际移动），FileLens 主打「不动文件，只是重新看」。需要硬归类用 Hazel，需要可逆 / 多视角用 FileLens。Path Finder 是 Finder 替代品，跟我们不是同一个赛道。</p>
+                        <summary data-i18n="faq.q4">跟 Hazel、Path Finder 这些是什么关系？</summary>
+                        <p data-i18n="faq.a4">Hazel 是搬走文件（实际移动），FileLens 是不动文件，只是重新看。需要硬归类用 Hazel，需要可逆、多视角用 FileLens。Path Finder 是 Finder 替代品，不是同一个赛道。</p>
                     </details>
                     <details>
-                        <summary>是开源的吗？</summary>
-                        <p>是。代码托管在 GitHub，你可以审计 / fork / 提 PR。免费 + MIT License。</p>
+                        <summary data-i18n="faq.q5">是开源的吗？</summary>
+                        <p data-i18n="faq.a5">是。代码托管在 GitHub，可以审计、fork、提 PR。免费，MIT License。</p>
                     </details>
                 </div>
             </div>
         </section>
 
-        <section class="donate">
+        <section class="donate" id="donate">
             <div class="container">
                 <div class="heart">💖</div>
-                <h2>喜欢 FileLens？</h2>
+                <h2 data-i18n="donate.title">喜欢 FileLens？</h2>
                 <p>
-                    FileLens 免费开源，由独立开发者维护。<br>
-                    你的支持是持续更新的最大动力。
+                    <span data-i18n="donate.line1">FileLens 免费开源，独立开发者维护。</span><br>
+                    <span data-i18n="donate.line2">支持能让更新持续下去。</span>
                 </p>
-                <a href="https://www.lifedever.com" class="btn btn-donate" target="_blank" rel="noopener">
+                <a href="https://www.lifedever.com" class="btn btn-donate" target="_blank" rel="noopener" data-i18n="donate.btn">
                     ❤️ 捐赠支持
                 </a>
             </div>
@@ -215,16 +243,199 @@
             <p>
                 © 2026 lifedever
                 · <a href="https://github.com/lifedever/file-lens" target="_blank" rel="noopener">GitHub</a>
-                · <a href="https://github.com/lifedever/file-lens/issues" target="_blank" rel="noopener">反馈</a>
+                · <a href="https://github.com/lifedever/file-lens/issues" target="_blank" rel="noopener" data-i18n="footer.feedback">反馈</a>
                 · <a href="https://github.com/lifedever/file-lens/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
             </p>
         </div>
     </footer>
 
     <script>
-        // Slideshow controller. Single instance because the page only has one
-        // .slideshow; would generalize to querySelectorAll if we ever need
-        // more.
+        // === i18n ===
+        // Strings live here as a flat key→value map per locale. Keep keys
+        // mirrored across locales; missing keys fall back to the existing
+        // text node so a partial translation never blanks out the page.
+        const I18N = {
+            zh: {
+                'meta.title': 'FileLens — 为文件夹加一层非破坏性的规则视图',
+                'meta.description': '给任意文件夹自动归类，不碰原始文件。免费开源的 macOS 工具。',
+                'meta.og_description': '给任意文件夹自动归类，不碰原始文件。',
+                'nav.features': '功能',
+                'nav.cases': '场景',
+                'nav.screenshots': '截图',
+                'nav.donate': '捐赠',
+                'nav.download': '下载',
+                'hero.tagline_main': '为任意文件夹加一层非破坏性的规则视图',
+                'hero.tagline_muted': '文件位置不变，按规则重新组织展示。',
+                'hero.cta': '下载 macOS 版',
+                'hero.meta': '免费开源 · macOS 14.0+ · Apple Silicon & Intel',
+                'how.title': '三步开始用',
+                'how.sub': '不碰文件，只是换个方式看。',
+                'how.s1.title': '选文件夹',
+                'how.s1.desc': '把 Downloads、Desktop、~/Code 这些经常乱的文件夹拖进来。几个都行。',
+                'how.s2.title': '写规则（或用内置的）',
+                'how.s2.desc': '按扩展名、名称、大小或时间定义规则，起个名字，配个颜色。14 条内置规则覆盖大部分场景。',
+                'how.s3.title': '看新视图',
+                'how.s3.desc': '侧栏出现规则视图，点哪个看哪个，新文件实时归类。原始文件夹结构没动。',
+                'shots.title': '看看它在做什么',
+                'features.title': '为什么选 FileLens',
+                'features.f1.title': '非破坏性视图',
+                'features.f1.desc': '文件位置不变，按规则在上层重新组织。卸载后文件夹原样不动。',
+                'features.f2.title': '智能自动归类',
+                'features.f2.desc': '按扩展名、名称、大小、日期定义规则，新文件实时归类。14 条内置规则，覆盖常见场景。',
+                'features.f3.title': '多文件夹支持',
+                'features.f3.desc': 'Downloads、Desktop、Documents……任意文件夹都可以加进来，每个文件夹有独立的规则集。',
+                'features.f4.title': '原生 macOS 体验',
+                'features.f4.desc': '快速查看、多选、拖拽排序、⌘K 命令菜单、全局快捷键。像 Finder，但更懂归类。',
+                'cases.title': '适合谁用',
+                'cases.sub': '如果你的某个文件夹长这样，FileLens 大概率能救你。',
+                'cases.c1.title': 'Downloads 永远爆炸',
+                'cases.c1.desc': '装机包、压缩包、PDF、随手保存的图片混在一起。FileLens 按类型自动分组：「安装包」、「文档」、「图片」、「最近 7 天」。',
+                'cases.c2.title': '~/Code 项目找不到',
+                'cases.c2.desc': '一两年攒了几十个 repo。给「最近改过」、「Web」、「移动端」、「废弃」各起一条规则，一眼定位。',
+                'cases.c3.title': '截图 / 录屏堆成山',
+                'cases.c3.desc': '桌面上 `CleanShot 20...png` 上百张？按时间分组、按尺寸过滤大图，一边截图一边自动归类。',
+                'cases.c4.title': '资料库懒得整理',
+                'cases.c4.desc': '论文、电子书、教程混在 Documents 里。PDF、EPUB、Markdown 各立一栏，按修改时间排序，找到上次没看完的那本。',
+                'faq.title': '常见问题',
+                'faq.q1': '它会移动我的文件吗？',
+                'faq.a1': '不会。FileLens 只是在上层提供一个规则视图，原始文件位置不动。卸载后文件夹结构和你安装前完全一样。',
+                'faq.q2': '跟 macOS 自带的「智能文件夹」有什么区别？',
+                'faq.a2': '智能文件夹只搜索 Finder 索引到的内容，规则编辑器弱，UI 拼凑。FileLens 为持续归类设计：规则可命名、配色，多文件夹独立配置，文件操作完整，新文件实时归类。',
+                'faq.q3': '支持网络盘 / 外接硬盘吗？',
+                'faq.a3': '支持。任意可挂载的目录都可以加进来。网络盘可以单独关掉监听变化，避免频繁 IO。',
+                'faq.q4': '跟 Hazel、Path Finder 这些是什么关系？',
+                'faq.a4': 'Hazel 是搬走文件（实际移动），FileLens 是不动文件，只是重新看。需要硬归类用 Hazel，需要可逆、多视角用 FileLens。Path Finder 是 Finder 替代品，不是同一个赛道。',
+                'faq.q5': '是开源的吗？',
+                'faq.a5': '是。代码托管在 GitHub，可以审计、fork、提 PR。免费，MIT License。',
+                'donate.title': '喜欢 FileLens？',
+                'donate.line1': 'FileLens 免费开源，独立开发者维护。',
+                'donate.line2': '支持能让更新持续下去。',
+                'donate.btn': '❤️ 捐赠支持',
+                'footer.feedback': '反馈',
+                'a11y.lang_toggle': '切换语言',
+                'a11y.theme_toggle': '切换主题',
+                'lang_toggle.label': 'EN',
+            },
+            en: {
+                'meta.title': 'FileLens — A non-destructive rule view for any folder',
+                'meta.description': 'Auto-organize any folder without touching the originals. Free, open-source macOS utility.',
+                'meta.og_description': 'Auto-organize any folder without touching the originals.',
+                'nav.features': 'Features',
+                'nav.cases': 'Use cases',
+                'nav.screenshots': 'Screenshots',
+                'nav.donate': 'Donate',
+                'nav.download': 'Download',
+                'hero.tagline_main': 'A non-destructive rule view, layered on any folder.',
+                'hero.tagline_muted': 'Files stay in place. Only the view changes.',
+                'hero.cta': 'Download for macOS',
+                'hero.meta': 'Free & open source · macOS 14.0+ · Apple Silicon & Intel',
+                'how.title': 'Three steps',
+                'how.sub': "Don't touch the files. Just see them differently.",
+                'how.s1.title': 'Pick a folder',
+                'how.s1.desc': 'Drag any folder—Downloads, Desktop, ~/Code—into the sidebar. Add as many as you like.',
+                'how.s2.title': 'Define rules (or use built-ins)',
+                'how.s2.desc': 'Match by extension, name, size, or modification time. Give each rule a name and a color. 14 built-in rules cover most cases.',
+                'how.s3.title': 'Browse the views',
+                'how.s3.desc': 'Each rule becomes a view in the sidebar. Click to switch. New files are classified instantly. The folder structure is untouched.',
+                'shots.title': 'A look inside',
+                'features.title': 'What FileLens does',
+                'features.f1.title': 'Non-destructive views',
+                'features.f1.desc': 'Files stay where they are. Rules reorganize a layer above them. Uninstall, and the folder is back to exactly what it was.',
+                'features.f2.title': 'Smart auto-classification',
+                'features.f2.desc': 'Define rules by extension, name, size, or date. New files are classified the moment they appear. 14 built-in rules cover the common cases.',
+                'features.f3.title': 'Multi-folder',
+                'features.f3.desc': 'Downloads, Desktop, Documents, an external drive—add any folder. Each maintains its own rule set.',
+                'features.f4.title': 'Native macOS feel',
+                'features.f4.desc': 'Quick Look, multi-select, drag and drop, ⌘K command menu, global shortcuts. Like Finder, with a sense of classification.',
+                'cases.title': 'Who it is for',
+                'cases.sub': 'If any of your folders look like one of these, FileLens probably helps.',
+                'cases.c1.title': 'Downloads always overflowing',
+                'cases.c1.desc': 'Installers, archives, PDFs, casually saved images all mixed together. FileLens auto-groups by type: "Installers", "Documents", "Images", "Last 7 days".',
+                'cases.c2.title': '~/Code overgrown',
+                'cases.c2.desc': "Dozens of repos accumulated over the years. Rules like \"Recently modified\", \"Web\", \"Mobile\", \"Archived\"—locate any project at a glance.",
+                'cases.c3.title': 'Screenshots piling up',
+                'cases.c3.desc': 'Hundreds of `CleanShot 20...png` on the desktop? Group by time, filter big files by size. Keep capturing—FileLens classifies them as they arrive.',
+                'cases.c4.title': 'Library left untouched',
+                'cases.c4.desc': 'Papers, ebooks, tutorials all mixed in Documents. PDF, EPUB, Markdown each get a view, sorted by modification date—return to where you left off.',
+                'faq.title': 'FAQ',
+                'faq.q1': 'Does it move my files?',
+                'faq.a1': "No. FileLens only provides a rule view on top; files never move. Uninstall, and the folder is exactly as it was before.",
+                'faq.q2': 'How is this different from Smart Folders?',
+                'faq.a2': 'Smart Folders only search what Finder has indexed; the rule editor is weak and the UI feels patched-on. FileLens is built for ongoing classification: named and colored rules, per-folder configuration, full file operations, and real-time classification.',
+                'faq.q3': 'Network volumes or external drives?',
+                'faq.a3': 'Supported. Any mountable directory can be added. Live monitoring can be turned off per-folder for network volumes to avoid frequent I/O.',
+                'faq.q4': 'How does it compare to Hazel or Path Finder?',
+                'faq.a4': "Hazel actually moves files; FileLens leaves them in place and just changes how they're viewed. Use Hazel for permanent archiving, FileLens for reversible, multi-perspective browsing. Path Finder is a Finder replacement—a different category.",
+                'faq.q5': 'Is it open source?',
+                'faq.a5': 'Yes. The code lives on GitHub—audit, fork, or send a PR. Free, MIT-licensed.',
+                'donate.title': 'Like FileLens?',
+                'donate.line1': 'FileLens is free, open source, and maintained by an independent developer.',
+                'donate.line2': 'Your support keeps the updates coming.',
+                'donate.btn': '❤️ Donate',
+                'footer.feedback': 'Feedback',
+                'a11y.lang_toggle': 'Switch language',
+                'a11y.theme_toggle': 'Toggle theme',
+                'lang_toggle.label': '中',
+            },
+        };
+
+        function applyI18n() {
+            const lang = document.documentElement.getAttribute('data-lang') || 'zh';
+            const dict = I18N[lang] || I18N.zh;
+
+            // Text nodes: data-i18n="key"
+            document.querySelectorAll('[data-i18n]').forEach(function (el) {
+                const key = el.getAttribute('data-i18n');
+                if (dict[key]) el.textContent = dict[key];
+            });
+
+            // Attribute translations: data-i18n-attr="attr:key"
+            // (e.g. data-i18n-attr="content:meta.description")
+            document.querySelectorAll('[data-i18n-attr]').forEach(function (el) {
+                const spec = el.getAttribute('data-i18n-attr');
+                spec.split(',').forEach(function (pair) {
+                    const parts = pair.trim().split(':');
+                    if (parts.length === 2 && dict[parts[1]]) {
+                        el.setAttribute(parts[0], dict[parts[1]]);
+                    }
+                });
+            });
+
+            // a11y labels for the toggles
+            const langBtn = document.getElementById('lang-toggle');
+            if (langBtn) langBtn.setAttribute('aria-label', dict['a11y.lang_toggle']);
+            const themeBtn = document.getElementById('theme-toggle');
+            if (themeBtn) themeBtn.setAttribute('aria-label', dict['a11y.theme_toggle']);
+            const langLabel = document.getElementById('lang-toggle-label');
+            if (langLabel) langLabel.textContent = dict['lang_toggle.label'];
+        }
+
+        // === Toggle handlers ===
+        document.addEventListener('DOMContentLoaded', function () {
+            applyI18n();
+
+            const langBtn = document.getElementById('lang-toggle');
+            langBtn.addEventListener('click', function () {
+                const cur = document.documentElement.getAttribute('data-lang') || 'zh';
+                const next = cur === 'zh' ? 'en' : 'zh';
+                document.documentElement.setAttribute('data-lang', next);
+                document.documentElement.lang = next === 'zh' ? 'zh-CN' : 'en';
+                try { localStorage.setItem('lang', next); } catch (e) {}
+                applyI18n();
+            });
+
+            const themeBtn = document.getElementById('theme-toggle');
+            themeBtn.addEventListener('click', function () {
+                const cur = document.documentElement.getAttribute('data-theme') || 'light';
+                const next = cur === 'dark' ? 'light' : 'dark';
+                document.documentElement.setAttribute('data-theme', next);
+                try { localStorage.setItem('theme', next); } catch (e) {}
+            });
+        });
+
+        // === Slideshow ===
+        // Single instance because the page only has one .slideshow; would
+        // generalize to querySelectorAll if we ever need more.
         (function () {
             const root = document.querySelector('.slideshow');
             if (!root) return;
@@ -264,8 +475,9 @@
                 document.hidden ? stop() : start();
             });
 
-            // Touch / swipe support — record the first touch X, decide direction
-            // on touchend. 40px threshold avoids accidental swipes from scroll.
+            // Touch / swipe support — record the first touch X, decide
+            // direction on touchend. 40px threshold avoids accidental
+            // swipes from scroll.
             let startX = 0;
             root.addEventListener('touchstart', function (e) {
                 startX = e.touches[0].clientX;

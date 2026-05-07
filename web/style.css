@@ -1,6 +1,7 @@
 /* === Reset === */
 *, *::before, *::after { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; }
 img { max-width: 100%; display: block; }
 a { color: inherit; text-decoration: none; }
 
@@ -27,19 +28,20 @@ a { color: inherit; text-decoration: none; }
             "Segoe UI", "Microsoft YaHei", sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-    :root {
-        --bg: #0c0d10;
-        --surface: #15171b;
-        --surface-2: #1c1f25;
-        --border: rgba(255, 255, 255, 0.08);
-        --text: #f3f5f8;
-        --text-secondary: #b9c0cc;
-        --text-tertiary: #8a909c;
-        --shadow-sm: 0 1px 2px rgba(0,0,0,0.30), 0 2px 6px rgba(0,0,0,0.30);
-        --shadow-md: 0 4px 12px rgba(0,0,0,0.45), 0 12px 32px rgba(0,0,0,0.45);
-        --shadow-lg: 0 8px 24px rgba(0,0,0,0.55), 0 24px 48px rgba(0,0,0,0.55);
-    }
+/* Dark theme tokens. Boot script always sets data-theme="light|dark" on
+   <html> based on saved preference or `prefers-color-scheme`, so this
+   selector covers both manual toggle and system default. */
+:root[data-theme="dark"] {
+    --bg: #0c0d10;
+    --surface: #15171b;
+    --surface-2: #1c1f25;
+    --border: rgba(255, 255, 255, 0.08);
+    --text: #f3f5f8;
+    --text-secondary: #b9c0cc;
+    --text-tertiary: #8a909c;
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.30), 0 2px 6px rgba(0,0,0,0.30);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.45), 0 12px 32px rgba(0,0,0,0.45);
+    --shadow-lg: 0 8px 24px rgba(0,0,0,0.55), 0 24px 48px rgba(0,0,0,0.55);
 }
 
 body {
@@ -78,6 +80,31 @@ body {
     font-size: 14px; color: var(--text-secondary);
 }
 .nav-links a:hover { color: var(--text); }
+
+/* Header icon-only buttons (theme + language toggles). */
+.icon-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px;
+    padding: 0;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit; font-size: 13px; font-weight: 600;
+    transition: background .12s ease, color .12s ease;
+}
+.icon-btn:hover { background: var(--surface-2); color: var(--text); }
+.icon-btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* Theme-icon swap: show "moon" in light mode (clicking goes dark),
+   show "sun" in dark mode (clicking goes light). */
+.icon-sun { display: none; }
+:root[data-theme="dark"] .icon-moon { display: none; }
+:root[data-theme="dark"] .icon-sun { display: inline-block; }
 
 /* === Buttons === */
 .btn {
@@ -200,10 +227,8 @@ body {
 .slide-nav:hover { background: #fff; transform: translateY(-50%) scale(1.06); }
 .slide-nav.prev { left: 14px; }
 .slide-nav.next { right: 14px; }
-@media (prefers-color-scheme: dark) {
-    .slide-nav { background: rgba(30, 32, 38, 0.85); color: #f3f5f8; }
-    .slide-nav:hover { background: rgba(40, 42, 50, 0.95); }
-}
+:root[data-theme="dark"] .slide-nav { background: rgba(30, 32, 38, 0.85); color: #f3f5f8; }
+:root[data-theme="dark"] .slide-nav:hover { background: rgba(40, 42, 50, 0.95); }
 .dots {
     position: absolute;
     bottom: 14px;
