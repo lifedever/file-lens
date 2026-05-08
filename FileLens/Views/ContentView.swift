@@ -407,13 +407,20 @@ struct ContentView: View {
     @ViewBuilder
     private func fileBody(files: [FileNode]) -> some View {
         if let ws = selectedWorkspace {
-            switch viewMode.wrappedValue {
-            case .grid:
+            // 两种视图始终都在 view tree 里,toggle grid/list 只切 opacity ——
+            // 避免 SwiftUI _ConditionalContent 切分支带来的 teardown→空帧→重建
+            // (~50ms)。workspace 切换时仍用 .id(ws.id) 让两个子视图都重 init,
+            // @State (列定制 / 缓存) 跟着重置。
+            let mode = viewMode.wrappedValue
+            ZStack {
                 FileGridView(workspace: ws, files: files, selection: $selectedFileIDs)
                     .id(ws.id)
-            case .list:
+                    .opacity(mode == .grid ? 1 : 0)
+                    .allowsHitTesting(mode == .grid)
                 FileTableView(workspace: ws, files: files, selection: $selectedFileIDs)
                     .id(ws.id)
+                    .opacity(mode == .list ? 1 : 0)
+                    .allowsHitTesting(mode == .list)
             }
         } else {
             // 没选中 workspace 时不渲染数据视图;父级会显示 EmptyStateView。
