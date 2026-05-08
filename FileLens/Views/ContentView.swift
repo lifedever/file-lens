@@ -403,22 +403,20 @@ struct ContentView: View {
     /// inspector 的默认宽度,既能放下文件名 + 标签流又不挤压主区。
     private var inspectorWidth: CGFloat { 280 }
 
+    @ViewBuilder
     private func fileBody(files: [FileNode]) -> some View {
-        guard let ws = selectedWorkspace else {
-            // 没选中 workspace 时不渲染数据视图;父级会显示 EmptyStateView。
-            return AnyView(EmptyView())
-        }
-        switch viewMode.wrappedValue {
-        case .grid:
-            return AnyView(
+        if let ws = selectedWorkspace {
+            switch viewMode.wrappedValue {
+            case .grid:
                 FileGridView(workspace: ws, files: files, selection: $selectedFileIDs)
                     .id(ws.id)
-            )
-        case .list:
-            return AnyView(
+            case .list:
                 FileTableView(workspace: ws, files: files, selection: $selectedFileIDs)
                     .id(ws.id)
-            )
+            }
+        } else {
+            // 没选中 workspace 时不渲染数据视图;父级会显示 EmptyStateView。
+            EmptyView()
         }
     }
 
