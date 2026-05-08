@@ -147,10 +147,11 @@ struct ContentView: View {
         }
         .sheet(item: $editingWorkspace) { ws in
             WorkspaceSettingsView(workspace: ws) { saved in
-                // 保存后:重启 watcher(可能 watchEnabled 变了)+ 重新扫描
-                // (递归 / 深度 / 排除项变了都需要 rescan)。activate 自带
-                // deactivate,顺带处理 watcher 状态切换。
-                Task { await coordinator?.activate(workspace: saved) }
+                // 保存后:重启 watcher(可能 watchEnabled 变了)+ 强制重新扫描
+                // (递归 / 深度 / 排除项变了都需要 rescan,绕开 activate 的
+                // session 缓存)。activate 自带 deactivate,顺带处理 watcher
+                // 状态切换。
+                Task { await coordinator?.activate(workspace: saved, forceRescan: true) }
             }
         }
         .task {
