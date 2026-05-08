@@ -44,6 +44,18 @@ final class Workspace {
     /// 默认 true,跟 Finder 一致。某些场景(只关心文件流)用户可以关掉。
     var includeFolders: Bool = true
 
+    /// 视图模式持久化:每个 workspace 独立。1 = grid, 2 = list。
+    /// 用 Int 不用 RawRepresentable enum,SwiftData 对 enum 演化支持不稳。
+    /// 与 `ViewMode` 在 ContentView.swift 的 rawValue 对齐。
+    var viewModeRaw: Int = 2
+
+    /// Grid 视图的图标大小,范围 48-160。每个 workspace 独立。
+    var gridIconSize: Double = 80
+
+    /// FileTable 列自定义(顺序/宽度/可见性)的 JSON 串。空串 = SwiftUI 默认列布局。
+    /// 每个 workspace 独立。
+    var tableColumnCustomizationJSON: String = ""
+
     @Relationship(deleteRule: .cascade, inverse: \Rule.workspace)
     var rules: [Rule] = []
 
@@ -54,7 +66,9 @@ final class Workspace {
          createdAt: Date = .now, sortOrder: Int = 0,
          recursive: Bool = false, maxDepth: Int = 0,
          displayName: String = "", extraIgnoreFolders: String = "",
-         watchEnabled: Bool = true, includeFolders: Bool = true) {
+         watchEnabled: Bool = true, includeFolders: Bool = true,
+         viewModeRaw: Int = 2, gridIconSize: Double = 80,
+         tableColumnCustomizationJSON: String = "") {
         self.id = id
         self.name = name
         self.folderPath = folderPath
@@ -67,6 +81,9 @@ final class Workspace {
         self.extraIgnoreFolders = extraIgnoreFolders
         self.watchEnabled = watchEnabled
         self.includeFolders = includeFolders
+        self.viewModeRaw = viewModeRaw
+        self.gridIconSize = gridIconSize
+        self.tableColumnCustomizationJSON = tableColumnCustomizationJSON
     }
 
     /// User-visible name. displayName 非空就用它,否则回 name。
