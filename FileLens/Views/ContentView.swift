@@ -17,9 +17,6 @@ struct ContentView: View {
     @State private var selectedWorkspace: Workspace?
     @State private var selection: SidebarSelection?
     @State private var coordinator: WorkspaceCoordinator?
-    /// 视图模式(grid / list)持久化。ViewMode 是 RawRepresentable Int,
-    /// macOS 14+ 的 @AppStorage 直接支持。
-    @AppStorage("filelens.viewMode") private var viewMode: ViewMode = .list
     /// Multi-selection of file IDs. We store IDs (not FileNode) so the set
     /// stays valid across SwiftData refresh cycles.
     @State private var selectedFileIDs: Set<UUID> = []
@@ -59,11 +56,25 @@ struct ContentView: View {
     @AppStorage("filelens.columnVisibility") private var columnVisibilityRaw: String = "automatic"
     /// 当前正在编辑设置的 workspace。打开 WorkspaceSettingsView sheet。
     @State private var editingWorkspace: Workspace?
-    /// Grid 图标大小,跟 FileGridView 共享同一个 AppStorage key。状态栏右下
-    /// 角的滑块直接驱动这个值,网格视图实时跟随。
-    @AppStorage("filelens.gridIconSize") private var gridIconSize: Double = 80
     @Environment(\.modelContext) private var modelContext
     @Query private var workspaces: [Workspace]
+
+    /// 视图模式 binding,绑到当前选中 workspace。selectedWorkspace == nil
+    /// 时(空状态)getter 返回 .list 兜底,setter no-op —— 此时 toolbar 本来
+    /// 也不会出现,这是双保险。
+    private var viewMode: Binding<ViewMode> {
+        Binding(
+            get: { selectedWorkspace.flatMap { ViewMode(rawValue: $0.viewModeRaw) } ?? .list },
+            set: { newValue in selectedWorkspace?.viewModeRaw = newValue.rawValue }
+        )
+    }
+
+    private var gridIconSize: Binding<Double> {
+        Binding(
+            get: { selectedWorkspace?.gridIconSize ?? 80 },
+            set: { newValue in selectedWorkspace?.gridIconSize = newValue }
+        )
+    }
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -392,18 +403,29 @@ struct ContentView: View {
     /// inspector 的默认宽度,既能放下文件名 + 标签流又不挤压主区。
     private var inspectorWidth: CGFloat { 280 }
 
-    @ViewBuilder
     private func fileBody(files: [FileNode]) -> some View {
-        switch viewMode {
-        case .grid: FileGridView(files: files, selection: $selectedFileIDs)
-        case .list: FileTableView(files: files, selection: $selectedFileIDs)
+        guard let ws = selectedWorkspace else {
+            // 没选中 workspace 时不渲染数据视图;父级会显示 EmptyStateView。
+            return AnyView(EmptyView())
+        }
+        switch viewMode.wrappedValue {
+        case .grid:
+            return AnyView(
+                FileGridView(workspace: ws, files: files, selection: $selectedFileIDs)
+                    .id(ws.id)
+            )
+        case .list:
+            return AnyView(
+                FileTableView(workspace: ws, files: files, selection: $selectedFileIDs)
+                    .id(ws.id)
+            )
         }
     }
 
     @ToolbarContentBuilder
     private var detailToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .primaryAction) {
-            Picker("View", selection: $viewMode) {
+            Picker("View", selection: viewMode) {
                 Image(systemName: "square.grid.2x2").tag(ViewMode.grid)
                 Image(systemName: "list.bullet").tag(ViewMode.list)
             }
@@ -515,8 +537,8 @@ struct ContentView: View {
     @ViewBuilder
     private var viewModeKeys: some View {
         Group {
-            Button("Grid") { viewMode = .grid }.keyboardShortcut("1", modifiers: .command).hidden()
-            Button("List") { viewMode = .list }.keyboardShortcut("2", modifiers: .command).hidden()
+            Button("Grid") { viewMode.wrappedValue = .grid }.keyboardShortcut("1", modifiers: .command).hidden()
+            Button("List") { viewMode.wrappedValue = .list }.keyboardShortcut("2", modifiers: .command).hidden()
             Button("Quick Look") { quickLookSelected() }
                 .keyboardShortcut(.space, modifiers: [])
                 .hidden()
@@ -599,7 +621,7 @@ struct ContentView: View {
             Spacer()
             // Grid 视图右下角的图标大小滑块。Finder 同款交互。
             // 只在 grid 视图显示 —— list 视图行高一致,无需调节。
-            if viewMode == .grid {
+            if viewMode.wrappedValue == .grid {
                 gridIconSizeSlider
             }
         }
@@ -631,7 +653,7 @@ struct ContentView: View {
             Image(systemName: "square.grid.3x3")
                 .font(.system(size: 9))
                 .foregroundStyle(.secondary)
-            Slider(value: $gridIconSize, in: 48...160)
+            Slider(value: gridIconSize, in: 48...160)
                 .frame(width: 100)
                 .controlSize(.mini)
             Image(systemName: "square.grid.2x2")

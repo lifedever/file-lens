@@ -3,13 +3,15 @@ import SwiftData
 import AppKit
 
 struct FileGridView: View {
+    @Bindable var workspace: Workspace
     let files: [FileNode]
     @Binding var selection: Set<UUID>
     @Environment(\.modelContext) private var modelContext
 
-    /// 由状态栏右下的滑块驱动,跨视图实例持久化(AppStorage)。
-    /// 48~160 是合理的图标尺寸区间:48 ≈ Finder "图标小"档,160 ≈ "巨大"档。
-    @AppStorage("filelens.gridIconSize") private var iconSize: Double = 80
+    /// 图标大小读自当前 workspace。状态栏滑块通过 ContentView 持有的
+    /// gridIconSize binding 写入 workspace.gridIconSize,@Bindable 保证
+    /// 这里的 view 自动重 render。
+    private var iconSize: Double { workspace.gridIconSize }
 
     /// 标记一次 drag 手势内是否已经把控制权交给 AppKit(NSDraggingSession)。
     /// SwiftUI DragGesture.onChanged 会持续 fire,守住这个 flag 保证我们只
@@ -31,7 +33,8 @@ struct FileGridView: View {
     /// @State 已存值覆盖丢弃 —— 纯 wasted work。
     @State private var groupedCache = GroupedCache()
 
-    init(files: [FileNode], selection: Binding<Set<UUID>>) {
+    init(workspace: Workspace, files: [FileNode], selection: Binding<Set<UUID>>) {
+        self.workspace = workspace
         self.files = files
         _selection = selection
     }

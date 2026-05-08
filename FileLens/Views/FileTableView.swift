@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 
 struct FileTableView: View {
+    @Bindable var workspace: Workspace
     let files: [FileNode]
     @Binding var selection: Set<UUID>
     @Environment(\.modelContext) private var modelContext
@@ -9,8 +10,8 @@ struct FileTableView: View {
     @State private var sortOrder: [KeyPathComparator<FileNode>]
 
     /// 列顺序 / 显隐自定义。Table 自带的右键 header 菜单 + 拖拽 reorder 全靠它。
-    /// 持久化:JSON encode 后塞 @AppStorage,跨启动保留用户摆位。
-    @AppStorage("FileTable.columnCustomizationJSON") private var columnCustomizationJSON: String = ""
+    /// 持久化:JSON encode 后塞到 workspace.tableColumnCustomizationJSON,
+    /// 每个 workspace 独立。
     @State private var columnCustomization: TableColumnCustomization<FileNode>
     /// 上一次满足"至少 3 列可见"的合法 customization 快照。当用户在 header
     /// 菜单里把第 3 列也勾掉时,onChange 会回滚到这个值,UI 上表现就是那一栏
@@ -35,18 +36,18 @@ struct FileTableView: View {
     /// shift-range 锚点(同 grid)。
     @State private var selectionAnchor: UUID?
 
-    init(files: [FileNode], selection: Binding<Set<UUID>>) {
+    init(workspace: Workspace, files: [FileNode], selection: Binding<Set<UUID>>) {
+        self.workspace = workspace
         self.files = files
         _selection = selection
         let initialSort: [KeyPathComparator<FileNode>] = [
             KeyPathComparator(\FileNode.dateAdded, order: .reverse)
         ]
         _sortOrder = State(initialValue: initialSort)
-        // 从 AppStorage 还原上次 column 顺序 / 显隐;首次启动或 decode 失败给默认空 customization。
-        // decodeCustomization 是 JSON decode,虽然每次 init 也会跑(SwiftUI 拿
-        // 不到外部稳定 store),但比 computeLayout 便宜一两个数量级,先放着。
-        let stored = UserDefaults.standard.string(forKey: "FileTable.columnCustomizationJSON") ?? ""
-        let initialCustomization = Self.decodeCustomization(stored)
+        // 从 workspace.tableColumnCustomizationJSON 还原上次 column 顺序 / 显隐。
+        // 每个 workspace 独立 —— 切换 workspace 时 SwiftUI 通过 .id(workspace.id)
+        // 在 ContentView 调用处强制重新 init 这个 view,@State 也跟着重置。
+        let initialCustomization = Self.decodeCustomization(workspace.tableColumnCustomizationJSON)
         _columnCustomization = State(initialValue: initialCustomization)
         _lastValidCustomization = State(initialValue: initialCustomization)
     }
@@ -186,7 +187,7 @@ struct FileTableView: View {
                 return
             }
             lastValidCustomization = newValue
-            columnCustomizationJSON = Self.encodeCustomization(newValue)
+            workspace.tableColumnCustomizationJSON = Self.encodeCustomization(newValue)
         }
     }
 
@@ -313,7 +314,7 @@ struct FileTableView: View {
         selectionAnchor = file.id
     }
 
-    /// JSON-encode `TableColumnCustomization` 用于 @AppStorage 持久化。
+    /// JSON-encode `TableColumnCustomization` 用于 workspace.tableColumnCustomizationJSON 持久化。
     /// 失败返回空串,下一次启动用默认布局。
     private static func encodeCustomization(_ value: TableColumnCustomization<FileNode>) -> String {
         guard let data = try? JSONEncoder().encode(value),
