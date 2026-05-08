@@ -15,6 +15,7 @@
 		24153E22EB4BB69873FCC33F /* BuiltInRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81689D15FF4C8840CE7A8814 /* BuiltInRules.swift */; };
 		275D2D22E2C925FA4A1D8B1F /* UpdateDialogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6DBD019B713552D041AF2D /* UpdateDialogView.swift */; };
 		27EA6563D268529E3DE5CD7C /* InspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6D7449A803044E4695A562D /* InspectorView.swift */; };
+		29BB8F6514C7F21326609CDD /* WorkspaceViewSettingsMigration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDB7E7A0AD40F85FB1B2605E /* WorkspaceViewSettingsMigration.swift */; };
 		2B2803C9CCB8417011E4A5AB /* ImagePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B17FC436F06F9B0356C4BD8 /* ImagePreview.swift */; };
 		2C7AA149CB06286CD4BBEA37 /* FileTableView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E3054ED561401B7D6A12CF88 /* FileTableView.swift */; };
 		303A0445741E756661A3B350 /* WelcomeSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7172EEC5BB032BFCDF940A7E /* WelcomeSheet.swift */; };
@@ -155,6 +156,7 @@
 		F8CC5E93498888D920C8825F /* FileLens.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FileLens.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		FB5DF61D5F79F709E0F5D0CD /* UpdateChecker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateChecker.swift; sourceTree = "<group>"; };
 		FD4B927888C55EEE3EF9DF42 /* RuleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuleEngine.swift; sourceTree = "<group>"; };
+		FDB7E7A0AD40F85FB1B2605E /* WorkspaceViewSettingsMigration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViewSettingsMigration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -201,6 +203,7 @@
 				AFAD3082B1A282ECD34771EF /* UpdateController.swift */,
 				63738735992374454DFFD965 /* UpdateService.swift */,
 				29D9EE51C43125F951439935 /* WorkspaceCoordinator.swift */,
+				FDB7E7A0AD40F85FB1B2605E /* WorkspaceViewSettingsMigration.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -482,6 +485,7 @@
 				97A7EC8B05EFDB6A1442B25B /* Workspace.swift in Sources */,
 				7030F71364E91DCCF5536B2B /* WorkspaceCoordinator.swift in Sources */,
 				8A7EA4EB338279EC8E69D495 /* WorkspaceSettingsView.swift in Sources */,
+				29BB8F6514C7F21326609CDD /* WorkspaceViewSettingsMigration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
