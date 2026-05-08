@@ -23,17 +23,17 @@ struct FileGridView: View {
     /// 自动退化为普通点击。
     @State private var selectionAnchor: UUID?
 
-    /// 时间分桶后的视图模型。同 FileTableView 缓存到 @State —— inspector
-    /// 切换会触发 ContentView body 重算,如果这里写成 computed property
-    /// 每帧都要重算 N 个文件的分桶,大目录会卡。仅在 files identity 真正
-    /// 变化时(onChange identityKey)重新计算。
-    @State private var grouped: [GroupedSlice]
+    /// 时间分桶 + 桶内 dateAdded 倒序的视图模型,缓存在 class 容器里。
+    /// @State 只持指针,SwiftUI 重 init View 不会触发 computeGrouped 重跑;
+    /// identityKey 命中时 O(1) 返回缓存。老实现把 grouped 直接当 @State 存,
+    /// init 时 `_grouped = State(initialValue: computeGrouped(...))` 看似只
+    /// 算一次,实际 SwiftUI 每次 body recompute 都会跑 init 这行,结果被
+    /// @State 已存值覆盖丢弃 —— 纯 wasted work。
+    @State private var groupedCache = GroupedCache()
 
     init(files: [FileNode], selection: Binding<Set<UUID>>) {
         self.files = files
         _selection = selection
-        // 同步算初始 grouped,避免首帧空白闪一下。
-        _grouped = State(initialValue: Self.computeGrouped(files: files))
     }
 
     /// adaptive minimum 基于 iconSize + 文字行 + padding。
@@ -45,6 +45,9 @@ struct FileGridView: View {
 
     var body: some View {
         ScrollView {
+            // 按 identityKey 命中缓存 → O(1);不命中才跑 computeGrouped
+            // (O(n) bucket + 每桶内 dateAdded 倒序)。同 FileTableView 套路。
+            let grouped = groupedCache.grouped(files: files, identityKey: identityKey)
             LazyVGrid(columns: columns, spacing: 12, pinnedViews: [.sectionHeaders]) {
                 ForEach(grouped) { slice in
                     Section {
@@ -57,9 +60,6 @@ struct FileGridView: View {
                 }
             }
             .padding(12)
-        }
-        .onChange(of: identityKey) { _, _ in
-            grouped = Self.computeGrouped(files: files)
         }
     }
 
@@ -115,7 +115,7 @@ struct FileGridView: View {
         .background(.background)   // 粘顶时遮住下面的内容
     }
 
-    private struct GroupedSlice: Identifiable {
+    fileprivate struct GroupedSlice: Identifiable {
         let bucket: DateBucket
         let files: [FileNode]
         var id: Int { bucket.rawValue }
@@ -129,16 +129,18 @@ struct FileGridView: View {
         return "\(files.count)|\(firstID)|\(lastID)"
     }
 
-    /// 输入 files 已经按 dateAdded 倒序(parent ContentView 排好);
-    /// 桶内顺序保持输入顺序,不再重排。`static` 让 init 阶段也能调。
-    private static func computeGrouped(files: [FileNode]) -> [GroupedSlice] {
+    /// 按 dateAdded 分桶 + 桶内按 dateAdded 倒序排序。Grid 视图没有用户可
+    /// 切换的 sort 维度(不像 Table),所以固定按时间倒序展示。`fileprivate`
+    /// 让同 file 的 GroupedCache 调得到。
+    fileprivate static func computeGrouped(files: [FileNode]) -> [GroupedSlice] {
         var byBucket: [DateBucket: [FileNode]] = [:]
         for f in files {
             byBucket[DateBucket.bucket(for: f.dateAdded), default: []].append(f)
         }
         return DateBucket.allCases.compactMap { b in
             guard let arr = byBucket[b], !arr.isEmpty else { return nil }
-            return GroupedSlice(bucket: b, files: arr)
+            let sorted = arr.sorted { $0.dateAdded > $1.dateAdded }
+            return GroupedSlice(bucket: b, files: sorted)
         }
     }
 
@@ -215,5 +217,20 @@ private struct FileGridItem: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(isSelected ? Color.accentColor.opacity(0.18) : .clear)
         )
+    }
+}
+
+/// FileGridView 的 grouped 缓存。同 FileTableView.LayoutCache 套路:class
+/// 引用类型 + @State 持指针,改内部字段不触发 SwiftUI rerender。
+private final class GroupedCache {
+    private var lastKey: String = ""
+    private var lastGrouped: [FileGridView.GroupedSlice] = []
+
+    func grouped(files: [FileNode],
+                 identityKey: String) -> [FileGridView.GroupedSlice] {
+        if identityKey == lastKey { return lastGrouped }
+        lastGrouped = FileGridView.computeGrouped(files: files)
+        lastKey = identityKey
+        return lastGrouped
     }
 }

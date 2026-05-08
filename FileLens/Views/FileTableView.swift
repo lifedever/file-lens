@@ -17,13 +17,17 @@ struct FileTableView: View {
     /// 勾不掉(也不报错,一致性很 macOS-like)。
     @State private var lastValidCustomization: TableColumnCustomization<FileNode>
 
-    /// 排好序、按当前 sort 决定要不要分桶的视图。Cached 在 @State 里,避免
-    /// inspector 展开等无关 body recompute 触发整表重排。
+    /// 排好序、按当前 sort 决定要不要分桶的视图。
     /// - 主排序 = `dateAdded` / `dateModified` → `.grouped`,section 头按对应
     ///   日期分桶("今天 / 昨天 / 本周")
-    /// - 主排序 = name / size / kind 等非时间字段 → `.flat`,单段平铺,
-    ///   不会出现"今天"section 里塞着 3 周前修改的文件那种困惑
-    @State private var layout: Layout
+    /// - 主排序 = name / size / kind 等非时间字段 → `.flat`,单段平铺
+    ///
+    /// 缓存在 class 容器里,@State 只持指针 —— 每次 SwiftUI 重 init View
+    /// (body recompute)不会触发 computeLayout 重跑;真正变化只在 identityKey
+    /// 变了的时候才重算。老实现把 layout 直接当 @State 存,init 时同步算
+    /// 一次喂 initialValue,但 SwiftUI 重 init 时这次计算会被 @State 已存值
+    /// 覆盖丢弃 —— 纯 wasted work,大列表点击延迟主要来自这里。
+    @State private var layoutCache = LayoutCache()
 
     /// 一次拖拽手势内只 beginDraggingSession 一次的守门 flag。
     @State private var dragHandedOff: Bool = false
@@ -38,10 +42,9 @@ struct FileTableView: View {
             KeyPathComparator(\FileNode.dateAdded, order: .reverse)
         ]
         _sortOrder = State(initialValue: initialSort)
-        // 同步计算初始 layout,避免首帧表格空白(否则 task(id:) 异步填值
-        // 会闪一下)。后续 sort/files 变化通过 onChange 增量更新。
-        _layout = State(initialValue: Self.computeLayout(files: files, sortOrder: initialSort))
         // 从 AppStorage 还原上次 column 顺序 / 显隐;首次启动或 decode 失败给默认空 customization。
+        // decodeCustomization 是 JSON decode,虽然每次 init 也会跑(SwiftUI 拿
+        // 不到外部稳定 store),但比 computeLayout 便宜一两个数量级,先放着。
         let stored = UserDefaults.standard.string(forKey: "FileTable.columnCustomizationJSON") ?? ""
         let initialCustomization = Self.decodeCustomization(stored)
         _columnCustomization = State(initialValue: initialCustomization)
@@ -143,6 +146,15 @@ struct FileTableView: View {
             .width(min: 60, ideal: 80)
             .customizationID("kind")
         } rows: {
+            // 按 identityKey 命中缓存 → O(1) 返回上次 layout;不命中才跑
+            // computeLayout(O(n) bucket + sort)。inspector toggle、hover 等
+            // 不影响数据的 body recompute 全部走 fast path,只剩 NSTableView
+            // 自己 reload 那点开销。
+            let layout = layoutCache.layout(
+                files: files,
+                sortOrder: sortOrder,
+                identityKey: identityKey
+            )
             switch layout {
             case .grouped(let slices):
                 ForEach(slices) { slice in
@@ -163,14 +175,6 @@ struct FileTableView: View {
             FileContextMenu(files: targets, modelContext: modelContext)
         } primaryAction: { ids in
             FileActions.open(filesForContextMenu(ids: ids))
-        }
-        // 用 onChange 把分桶/排序限定在数据真正变化时跑;identityKey 是
-        // 廉价的稳定 key(count + 首尾 id),足以 detect 列表替换与排序切换。
-        // 老实现把 grouped 写成 computed property 时,inspector 展开会让
-        // ContentView 重算 body,顺带把这段也跑一遍 —— 列表大时就是肉眼卡。
-        // 初始值已在 init 同步计算,这里只处理后续变化。
-        .onChange(of: identityKey) { _, _ in
-            layout = Self.computeLayout(files: files, sortOrder: sortOrder)
         }
         // 用户在 header 右键勾选/拖动 reorder 后,把新的 customization 持久化。
         // 同时强制至少 3 列可见 —— 用户在菜单里把第 3 列也勾掉时,把状态回滚
@@ -197,7 +201,7 @@ struct FileTableView: View {
         return count
     }
 
-    private struct GroupedSlice: Identifiable {
+    fileprivate struct GroupedSlice: Identifiable {
         let bucket: DateBucket
         let files: [FileNode]
         var id: Int { bucket.rawValue }
@@ -205,7 +209,8 @@ struct FileTableView: View {
 
     /// 表格的两种渲染形态。grouped 时按日期分桶(section 标题 = "今天 / 本周"
     /// 之类);flat 时单段平铺,跟当前非日期排序对得上。
-    private enum Layout {
+    /// fileprivate 是为了让同 file 内的 LayoutCache class 拿得到。
+    fileprivate enum Layout {
         case grouped([GroupedSlice])
         case flat([FileNode])
     }
@@ -221,14 +226,14 @@ struct FileTableView: View {
         return "\(files.count)|\(firstID)|\(lastID)|\(sortKey)"
     }
 
-    /// 决定当前 sort 下的渲染形态。`static` 是为了能在 init 里调(那时 self
-    /// 还没构造完)。规则:
+    /// 决定当前 sort 下的渲染形态。`static` + `fileprivate` 是为了让 LayoutCache
+    /// 能跨类型调到。规则:
     ///   - 主排序 = `dateAdded` → 按 dateAdded 分桶
     ///   - 主排序 = `dateModified` → 按 dateModified 分桶
     ///   - 其他(name / size / kind 等) → 不分桶,平铺
     /// 这样 section 标题永远跟当前排序的"维度"对齐,不会出现"今天"组里
     /// 排着 3 周前修改的文件这种困惑。
-    private static func computeLayout(
+    fileprivate static func computeLayout(
         files: [FileNode],
         sortOrder: [KeyPathComparator<FileNode>]
     ) -> Layout {
@@ -337,4 +342,21 @@ struct FileTableView: View {
         f.timeStyle = .short
         return f
     }()
+}
+
+/// FileTableView 的 layout 缓存。class 引用类型,@State 只持指针 —— 改内
+/// 部字段不触发 SwiftUI rerender,纯 memo。identityKey 命中时 O(1) 返回缓
+/// 存,不命中才跑 computeLayout。
+private final class LayoutCache {
+    private var lastKey: String = ""
+    private var lastLayout: FileTableView.Layout = .flat([])
+
+    func layout(files: [FileNode],
+                sortOrder: [KeyPathComparator<FileNode>],
+                identityKey: String) -> FileTableView.Layout {
+        if identityKey == lastKey { return lastLayout }
+        lastLayout = FileTableView.computeLayout(files: files, sortOrder: sortOrder)
+        lastKey = identityKey
+        return lastLayout
+    }
 }

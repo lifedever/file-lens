@@ -42,6 +42,11 @@ struct ContentView: View {
     /// 250ms 是 VSCode / Spotlight 同款数量级,体感「即时」但能拢住快速连击。
     @State private var debouncedSearchText: String = ""
     @State private var searchDebounceTask: Task<Void, Never>?
+    /// `filesForCurrentSelection` 的廉价 memo。class 引用类型,@State 只持有
+    /// 指针,改 result/key 不触发 SwiftUI 重 render —— 这正是 memo 想要的。
+    /// 同 selection / search / file-count 重复 body recompute(inspector toggle、
+    /// hover、focus 切换等)直接命中缓存,跳过 filter+sort 链路。
+    @State private var filesMemo = FilesMemo()
     /// 首次启动(没添加任何文件夹)时把 sidebar 隐藏 —— 空状态本身已经有
     /// 选择文件夹的 CTA,左侧空白栏看起来很奇怪。注意这是 *单向* 切换:
     /// 一旦用户加了第一个 workspace 就转 .all,之后用户手动隐藏/显示都
@@ -209,6 +214,17 @@ struct ContentView: View {
     }
 
     private func filesForCurrentSelection(workspace ws: Workspace) -> [FileNode] {
+        // 廉价 memo key:同 (workspace, selection, search, file count) 直接命中
+        // 缓存,跳过整条过滤链。SwiftData 增删文件会改 file count 触发重算。
+        // tag 改动不在 key 里 —— reapplyRulesIfNeeded 末尾会调用 invalidate
+        // 让重打 tag 后下次能强制重算。
+        let key = filesMemo.key(workspace: ws,
+                                selection: selection,
+                                search: debouncedSearchText)
+        if filesMemo.lastKey == key {
+            return filesMemo.lastResult
+        }
+
         let base: [FileNode]
         let present = ws.files.filter { $0.isPresent }
         switch selection {
@@ -220,11 +236,16 @@ struct ContentView: View {
             base = present
         }
 
-        let filtered = debouncedSearchText.isEmpty
+        let result = debouncedSearchText.isEmpty
             ? base
             : base.filter { $0.name.localizedCaseInsensitiveContains(debouncedSearchText) }
 
-        return filtered.sorted { $0.dateAdded > $1.dateAdded }
+        // 注意:不再做外层 sort —— FileTableView/FileGridView 内部都按当前
+        // sortOrder 重新分桶+排序,外层 sort 永远被覆盖,白做一次 O(n log n)。
+
+        filesMemo.lastKey = key
+        filesMemo.lastResult = result
+        return result
     }
 
     private func addFolder() {
@@ -286,6 +307,9 @@ struct ContentView: View {
             let indexer = FileIndexer(container: modelContext.container)
             try? indexer.applyRules(workspace: ws)
             try? modelContext.save()
+            // tag 重打过,memo 里基于 file count + selection name 算的 key
+            // 没变化,但内容已经变了 —— 强制 invalidate 让下次 filter 重跑。
+            await MainActor.run { filesMemo.invalidate() }
         }
     }
 
@@ -401,15 +425,55 @@ struct ContentView: View {
         RuleEditorView(
             rule: rule,
             isNewRule: pendingNewRule?.id == rule.id,
-            onSave:   { saveRule(rule) },
+            onSave:   { draft in saveRule(rule, draft: draft) },
             onCancel: { cancelRule() },
             onDelete: { deleteRule(rule) }
         )
     }
 
-    private func saveRule(_ rule: Rule) {
-        if let pending = pendingNewRule, pending.id == rule.id,
-           let ws = selectedWorkspace {
+    /// 把编辑器回传的草稿 patch 回 SwiftData 模型。
+    /// - 字段(name / color / enabled / combinator):直接赋值
+    /// - conditions:按 id 协调
+    ///   * 草稿有 / 模型没 → 新建 Condition + insert
+    ///   * 模型有 / 草稿没 → modelContext.delete (不再作为 cascade 孤儿留着)
+    ///   * 两边都有 → 更新 field/op/value(只在内容变了的时候赋值,避免无谓 dirty)
+    /// 新规则路径(pendingNewRule)在 patch 完之后才把 rule + conditions 一起 insert。
+    private func saveRule(_ rule: Rule, draft: RuleEditorView.Draft) {
+        rule.name = draft.name
+        rule.color = draft.color
+        rule.enabled = draft.enabled
+        rule.combinator = draft.combinator
+
+        let isPending = pendingNewRule?.id == rule.id
+
+        // Conditions 协调
+        let draftIDs = Set(draft.conditions.map(\.id))
+        let existing = Dictionary(uniqueKeysWithValues: rule.conditions.map { ($0.id, $0) })
+
+        // 删除草稿里不再有的旧 condition。pending 路径下整条 rule 还没入库,
+        // 这些 Condition 对象也就还在内存里,从 rule.conditions 里拿掉就行;
+        // 已入库的走 modelContext.delete。
+        for (id, cond) in existing where !draftIDs.contains(id) {
+            if !isPending {
+                modelContext.delete(cond)
+            }
+            rule.conditions.removeAll { $0.id == id }
+        }
+
+        // 更新或插入
+        for d in draft.conditions {
+            if let cond = existing[d.id] {
+                if cond.field != d.field { cond.field = d.field }
+                if cond.op != d.op       { cond.op = d.op }
+                if cond.value != d.value { cond.value = d.value }
+            } else {
+                let cond = Condition(id: d.id, field: d.field, op: d.op, value: d.value)
+                cond.rule = rule
+                rule.conditions.append(cond)
+            }
+        }
+
+        if isPending, let ws = selectedWorkspace {
             rule.workspace = ws
             modelContext.insert(rule)
             for cond in rule.conditions { modelContext.insert(cond) }
@@ -637,5 +701,33 @@ struct ContentView: View {
         let f = ByteCountFormatter()
         f.countStyle = .file
         return f
+    }
+}
+
+/// `filesForCurrentSelection` 的 memo 容器。class 引用类型,@State 只持有
+/// 指针 —— 改 lastKey/lastResult 不触发 SwiftUI 重 render(只有 @State 指
+/// 针变了才会),适合做不影响视图的纯缓存。
+private final class FilesMemo {
+    var lastKey: String = ""
+    var lastResult: [FileNode] = []
+
+    /// 廉价 stable digest:workspace.id + 当前 selection + 搜索词 + 文件总数。
+    /// tag 改动会经 reapplyRulesIfNeeded 显式 invalidate,不在这里算。
+    func key(workspace ws: Workspace,
+             selection: SidebarSelection?,
+             search: String) -> String {
+        let sel: String
+        switch selection {
+        case .none:                       sel = "_"
+        case .workspace(let id):          sel = "ws:\(id)"
+        case .tag(_, let name):           sel = "t:\(name)"
+        case .uncategorized(let id):      sel = "u:\(id)"
+        }
+        return "\(ws.id)|\(sel)|\(search)|\(ws.files.count)"
+    }
+
+    func invalidate() {
+        lastKey = ""
+        lastResult = []
     }
 }

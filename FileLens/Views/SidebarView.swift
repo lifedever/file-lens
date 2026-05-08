@@ -72,7 +72,7 @@ struct SidebarView: View {
                     ForEach(visibleRules(in: ws)) { rule in
                         tagRow(
                             text: TagDisplay.localizedName(rule.name),
-                            count: filesCount(for: ws, tag: rule.name),
+                            count: filesCount(for: ws, rule: rule),
                             color: Color(hexString: rule.color)
                         )
                         .opacity(rule.enabled ? 1.0 : 0.5)
@@ -113,6 +113,9 @@ struct SidebarView: View {
                                 openInFinder(ws)
                             }
                             Divider()
+                            Button("New Rule…") {
+                                onNewRule(ws)
+                            }
                             Button("workspace.contextmenu.settings") {
                                 onEditWorkspace(ws)
                             }
@@ -238,7 +241,7 @@ struct SidebarView: View {
     private func visibleRules(in ws: Workspace) -> [Rule] {
         let sorted = ws.rules.sorted(by: { $0.priority < $1.priority })
         if showEmptyRules { return sorted }
-        return sorted.filter { filesCount(for: ws, tag: $0.name) > 0 }
+        return sorted.filter { filesCount(for: ws, rule: $0) > 0 }
     }
 
     /// 在 Finder 中打开 workspace 对应的文件夹。文件夹不存在(用户在外面 mv /
@@ -494,8 +497,17 @@ struct SidebarView: View {
 
     // MARK: counts
 
-    private func filesCount(for ws: Workspace, tag: String) -> Int {
-        ws.files.filter { f in f.isPresent && f.tags.contains(where: { $0.name == tag }) }.count
+    /// 按 rule.id 去匹配 FileTag.ruleID 计数。早先版本是按 rule.name 匹配
+    /// FileTag.name —— 但 rule.name 是 @Bindable 实时绑定的字段,RuleEditor
+    /// 输入框每敲一个字 SwiftData 模型上的 name 立刻变,而文件上的旧 tag 还
+    /// 没被 applyRules 重打,导致 count 瞬间归零、规则在 sidebar 消失,
+    /// 用户以为被删了去重新建一个 → 重名规则。改用 ruleID 之后 name 怎么
+    /// 改都不影响 count,规则不再"看着像没了"。
+    private func filesCount(for ws: Workspace, rule: Rule) -> Int {
+        let ruleID = rule.id
+        return ws.files.filter { f in
+            f.isPresent && f.tags.contains(where: { $0.ruleID == ruleID })
+        }.count
     }
 
     private func uncategorizedCount(for ws: Workspace) -> Int {

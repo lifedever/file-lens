@@ -1,13 +1,79 @@
 import SwiftUI
 
+/// 规则编辑器。
+///
+/// 历史教训:旧版本用 `@Bindable var rule: Rule` 直接把 SwiftData 模型对象
+/// 绑给 TextField / Picker / Toggle / Color row。SwiftData 的 @Model 是 class,
+/// 每敲一个字、点一次圆点都立刻写到内存对象,Cancel 根本回不来 —— 用户感
+/// 知到的"取消"成了"保存"。
+///
+/// 现在改为草稿模式:init 时把 rule 当前值快照成本地 `Draft`(纯 struct),
+/// 编辑器内部所有控件都绑到 `$draft.*`。Save 时通过 `onSave(draft)` 把草稿
+/// 回传给调用方,由调用方负责 patch 回 Rule + 协调 conditions(更新 / 增 /
+/// 删)并 modelContext.save()。Cancel 直接关闭 sheet,模型动都不动。
 struct RuleEditorView: View {
-    @Bindable var rule: Rule
+    /// 仅用于 id / 比较;不绑控件、不可被本视图修改。新规则路径下也只读 id。
+    let rule: Rule
     let isNewRule: Bool
-    let onSave: () -> Void
+    let onSave: (Draft) -> Void
     let onCancel: () -> Void
     let onDelete: () -> Void
 
+    @State private var draft: Draft
     @State private var confirmingDelete = false
+
+    init(
+        rule: Rule,
+        isNewRule: Bool,
+        onSave: @escaping (Draft) -> Void,
+        onCancel: @escaping () -> Void,
+        onDelete: @escaping () -> Void
+    ) {
+        self.rule = rule
+        self.isNewRule = isNewRule
+        self.onSave = onSave
+        self.onCancel = onCancel
+        self.onDelete = onDelete
+        _draft = State(initialValue: Draft.from(rule))
+    }
+
+    /// 编辑器内部用的纯值草稿。Save 时整体 patch 回 SwiftData 模型。
+    struct Draft: Equatable {
+        var name: String
+        var color: String
+        var enabled: Bool
+        var combinator: String
+        var conditions: [ConditionDraft]
+
+        static func from(_ rule: Rule) -> Draft {
+            Draft(
+                name: rule.name,
+                color: rule.color,
+                enabled: rule.enabled,
+                combinator: rule.combinator,
+                conditions: rule.conditions.map { c in
+                    ConditionDraft(id: c.id, field: c.field, op: c.op, value: c.value)
+                }
+            )
+        }
+    }
+
+    /// 单条条件的草稿。`id` 跟 `Condition.id` 对齐,save 时调用方按 id 协调:
+    /// 草稿里有但模型里没的 → insert;模型里有但草稿里没的 → delete;两边
+    /// 都有的 → update field/op/value。
+    struct ConditionDraft: Identifiable, Equatable {
+        let id: UUID
+        var field: String
+        var op: String
+        var value: String
+
+        init(id: UUID = UUID(), field: String, op: String, value: String) {
+            self.id = id
+            self.field = field
+            self.op = op
+            self.value = value
+        }
+    }
 
     private var titleKey: LocalizedStringKey {
         isNewRule ? "New rule" : "Edit rule"
@@ -51,7 +117,7 @@ struct RuleEditorView: View {
     private var header: some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(Color(hexString: rule.color))
+                .fill(Color(hexString: draft.color))
                 .frame(width: 14, height: 14)
                 .overlay(Circle().stroke(Color.primary.opacity(0.12), lineWidth: 0.5))
             Text(titleKey)
@@ -65,26 +131,23 @@ struct RuleEditorView: View {
     private var metadataSection: some View {
         VStack(alignment: .leading, spacing: 14) {
             LabeledRow(label: "Name") {
-                // Built-in rules are now stored with their localized name at
-                // creation time, so all rules — built-in or user-made — are
-                // freely editable here.
-                TextField("Rule name", text: $rule.name)
+                TextField("Rule name", text: $draft.name)
                     .textFieldStyle(.roundedBorder)
             }
 
             LabeledRow(label: "Color") {
-                ColorPaletteRow(selected: $rule.color)
+                ColorPaletteRow(selected: $draft.color)
             }
 
             LabeledRow(label: "Match") {
-                Picker("", selection: $rule.combinator) {
+                Picker("", selection: $draft.combinator) {
                     Text("All conditions").tag("all")
                     Text("Any condition").tag("any")
                 }
                 .labelsHidden()
                 .frame(width: 180)
                 Spacer()
-                Toggle("Enabled", isOn: $rule.enabled)
+                Toggle("Enabled", isOn: $draft.enabled)
             }
         }
     }
@@ -95,7 +158,9 @@ struct RuleEditorView: View {
                 Text("Conditions").font(.headline)
                 Spacer()
                 Button {
-                    rule.conditions.append(Condition(field: "extension", op: "is", value: ""))
+                    draft.conditions.append(
+                        ConditionDraft(field: "extension", op: "is", value: "")
+                    )
                 } label: {
                     Label("Add Condition", systemImage: "plus.circle")
                 }
@@ -103,11 +168,9 @@ struct RuleEditorView: View {
             }
 
             VStack(spacing: 8) {
-                ForEach(rule.conditions) { cnd in
-                    ConditionRow(condition: cnd, onRemove: {
-                        if let i = rule.conditions.firstIndex(where: { $0.id == cnd.id }) {
-                            rule.conditions.remove(at: i)
-                        }
+                ForEach($draft.conditions) { $cnd in
+                    ConditionRow(condition: $cnd, onRemove: {
+                        draft.conditions.removeAll { $0.id == cnd.id }
                     })
                 }
             }
@@ -132,9 +195,11 @@ struct RuleEditorView: View {
             Spacer()
             Button("Cancel", action: onCancel)
                 .keyboardShortcut(.cancelAction)
-            Button(isNewRule ? "Add Rule" : "Save", action: onSave)
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
+            Button(isNewRule ? "Add Rule" : "Save") {
+                onSave(draft)
+            }
+            .keyboardShortcut(.defaultAction)
+            .buttonStyle(.borderedProminent)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 14)
@@ -200,7 +265,7 @@ private struct LabeledRow<Content: View>: View {
 }
 
 private struct ConditionRow: View {
-    @Bindable var condition: Condition
+    @Binding var condition: RuleEditorView.ConditionDraft
     let onRemove: () -> Void
 
     var body: some View {
