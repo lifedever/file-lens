@@ -828,6 +828,20 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 Finder 中显示" } }
       }
     },
+    "workspace.contextmenu.openInFinder" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Open in Finder" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "在 Finder 中打开" } }
+      }
+    },
+    "workspace.openInFinder.missing.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Folder not found: %@" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "文件夹不存在：%@" } }
+      }
+    },
     "Open With Default App" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1057,6 +1071,13 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Date Added" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "添加时间" } }
+      }
+    },
+    "Date Modified" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Date Modified" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "修改时间" } }
       }
     },
     "Added" : {
@@ -1827,6 +1848,27 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Scan Scope" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "扫描范围" } }
+      }
+    },
+    "workspace.settings.tab.general" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "General" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "通用" } }
+      }
+    },
+    "workspace.settings.tab.scope" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Scope" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "范围" } }
+      }
+    },
+    "workspace.settings.tab.exclude" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Exclude" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "排除" } }
       }
     },
     "workspace.settings.recursive" : {

@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppKit
 
 enum ViewMode: Int { case grid = 1, list = 2 }
 
@@ -350,6 +351,17 @@ struct ContentView: View {
         .animation(.easeOut(duration: 0.22), value: showInspector)
         .searchable(text: $searchText, placement: .toolbar)
         .toolbar { detailToolbar }
+        // ⌘F 把焦点抢到工具栏搜索框。`.searchFocused` 是 macOS 15 才有,
+        // 这里走 AppKit responder chain:在 keyWindow 的 toolbar 里找 NSSearchField
+        // 然后 makeFirstResponder。隐藏 Button 的 keyboardShortcut 用来注册热键,
+        // 放 .background 里对布局零影响。
+        .background(
+            Button("Find") { focusToolbarSearchField() }
+                .keyboardShortcut("f", modifiers: .command)
+                .opacity(0)
+                .frame(width: 0, height: 0)
+                .accessibilityHidden(true)
+        )
     }
 
     /// Persisted inspector pane width. 280 是 macOS Mail / Notes 等系统应用
@@ -576,6 +588,33 @@ struct ContentView: View {
         let urls = currentSelection.compactMap { FileActions.url(for: $0) }
         guard !urls.isEmpty else { return }
         QuickLookCoordinator.shared.show(urls: urls)
+    }
+
+    /// macOS 14 fallback for `searchFocused` (which is macOS 15+):在 keyWindow 的
+    /// toolbar 里挖出 SwiftUI `.searchable` 注入的 NSSearchField,然后
+    /// makeFirstResponder。SwiftUI 把 search field 包成 NSSearchToolbarItem
+    /// (有则直接用其 .searchField),没找到时再退回深度优先 subview 扫描兜底。
+    private func focusToolbarSearchField() {
+        guard let window = NSApp.keyWindow ?? NSApp.mainWindow,
+              let toolbar = window.toolbar else { return }
+        for item in toolbar.items {
+            if let searchItem = item as? NSSearchToolbarItem {
+                window.makeFirstResponder(searchItem.searchField)
+                return
+            }
+            if let view = item.view, let field = Self.findSearchField(in: view) {
+                window.makeFirstResponder(field)
+                return
+            }
+        }
+    }
+
+    private static func findSearchField(in root: NSView) -> NSSearchField? {
+        if let sf = root as? NSSearchField { return sf }
+        for sub in root.subviews {
+            if let found = findSearchField(in: sub) { return found }
+        }
+        return nil
     }
 
     /// Window title reflects the current workspace + sidebar selection,

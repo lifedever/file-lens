@@ -8,12 +8,22 @@ struct FileTableView: View {
 
     @State private var sortOrder: [KeyPathComparator<FileNode>]
 
-    /// Grouped + sorted view of `files`. Cached in @State so that triggering
-    /// SwiftUI body recompute (e.g. inspector toggle reshapes the parent view
-    /// tree) doesn't re-run the full bucket+sort pass on every frame of the
-    /// inspector slide animation. Recomputed on the actual data dependencies:
-    /// files identity (count + first/last id) and sortOrder.
-    @State private var grouped: [GroupedSlice]
+    /// 列顺序 / 显隐自定义。Table 自带的右键 header 菜单 + 拖拽 reorder 全靠它。
+    /// 持久化:JSON encode 后塞 @AppStorage,跨启动保留用户摆位。
+    @AppStorage("FileTable.columnCustomizationJSON") private var columnCustomizationJSON: String = ""
+    @State private var columnCustomization: TableColumnCustomization<FileNode>
+    /// 上一次满足"至少 3 列可见"的合法 customization 快照。当用户在 header
+    /// 菜单里把第 3 列也勾掉时,onChange 会回滚到这个值,UI 上表现就是那一栏
+    /// 勾不掉(也不报错,一致性很 macOS-like)。
+    @State private var lastValidCustomization: TableColumnCustomization<FileNode>
+
+    /// 排好序、按当前 sort 决定要不要分桶的视图。Cached 在 @State 里,避免
+    /// inspector 展开等无关 body recompute 触发整表重排。
+    /// - 主排序 = `dateAdded` / `dateModified` → `.grouped`,section 头按对应
+    ///   日期分桶("今天 / 昨天 / 本周")
+    /// - 主排序 = name / size / kind 等非时间字段 → `.flat`,单段平铺,
+    ///   不会出现"今天"section 里塞着 3 周前修改的文件那种困惑
+    @State private var layout: Layout
 
     /// 一次拖拽手势内只 beginDraggingSession 一次的守门 flag。
     @State private var dragHandedOff: Bool = false
@@ -28,13 +38,23 @@ struct FileTableView: View {
             KeyPathComparator(\FileNode.dateAdded, order: .reverse)
         ]
         _sortOrder = State(initialValue: initialSort)
-        // 同步计算初始 grouped,避免首帧表格空白(否则 task(id:) 异步填值
+        // 同步计算初始 layout,避免首帧表格空白(否则 task(id:) 异步填值
         // 会闪一下)。后续 sort/files 变化通过 onChange 增量更新。
-        _grouped = State(initialValue: Self.computeGrouped(files: files, sortOrder: initialSort))
+        _layout = State(initialValue: Self.computeLayout(files: files, sortOrder: initialSort))
+        // 从 AppStorage 还原上次 column 顺序 / 显隐;首次启动或 decode 失败给默认空 customization。
+        let stored = UserDefaults.standard.string(forKey: "FileTable.columnCustomizationJSON") ?? ""
+        let initialCustomization = Self.decodeCustomization(stored)
+        _columnCustomization = State(initialValue: initialCustomization)
+        _lastValidCustomization = State(initialValue: initialCustomization)
     }
 
     var body: some View {
-        Table(of: FileNode.self, selection: $selection, sortOrder: $sortOrder) {
+        Table(
+            of: FileNode.self,
+            selection: $selection,
+            sortOrder: $sortOrder,
+            columnCustomization: $columnCustomization
+        ) {
             TableColumn("Name", value: \.name) { f in
                 HStack(spacing: 6) {
                     FileThumbnail(file: f, size: 18)
@@ -75,6 +95,9 @@ struct FileTableView: View {
                         }
                 )
             }
+            .customizationID("name")
+            // Name 列不允许隐藏 / 重排,作为锚定列(隐了用户就找不到文件了)。
+            .disabledCustomizationBehavior([.reorder, .visibility])
 
             TableColumn("Size", value: \.size) { f in
                 // 文件夹没有"大小"概念,显示破折号(同 Finder)
@@ -85,6 +108,7 @@ struct FileTableView: View {
             // .width(min:ideal:) 让用户能拖列分隔符调整宽度;固定 .width(N)
             // 会让 SwiftUI Table 把列锁死,分隔符不响应拖拽。
             .width(min: 60, ideal: 80)
+            .customizationID("size")
 
             TableColumn("Date Added", value: \.dateAdded) { f in
                 Text(verbatim: Self.dateFormatter.string(from: f.dateAdded))
@@ -92,6 +116,15 @@ struct FileTableView: View {
                     .monospacedDigit()
             }
             .width(min: 120, ideal: 160)
+            .customizationID("dateAdded")
+
+            TableColumn("Date Modified", value: \.dateModified) { f in
+                Text(verbatim: Self.dateFormatter.string(from: f.dateModified))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            .width(min: 120, ideal: 160)
+            .customizationID("dateModified")
 
             TableColumn("Tags") { (f: FileNode) in
                 Text(f.tags.map { TagDisplay.localizedName($0.name) }.joined(separator: ", "))
@@ -100,6 +133,7 @@ struct FileTableView: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
             }
+            .customizationID("tags")
 
             TableColumn("Kind", value: \.kind) { (f: FileNode) in
                 Text(KindDisplay.localizedName(f.kind))
@@ -107,12 +141,20 @@ struct FileTableView: View {
                     .foregroundStyle(.secondary)
             }
             .width(min: 60, ideal: 80)
+            .customizationID("kind")
         } rows: {
-            ForEach(grouped) { slice in
-                Section(slice.bucket.localizedTitle) {
-                    ForEach(slice.files) { f in
-                        TableRow(f)
+            switch layout {
+            case .grouped(let slices):
+                ForEach(slices) { slice in
+                    Section(slice.bucket.localizedTitle) {
+                        ForEach(slice.files) { f in
+                            TableRow(f)
+                        }
                     }
+                }
+            case .flat(let files):
+                ForEach(files) { f in
+                    TableRow(f)
                 }
             }
         }
@@ -128,14 +170,44 @@ struct FileTableView: View {
         // ContentView 重算 body,顺带把这段也跑一遍 —— 列表大时就是肉眼卡。
         // 初始值已在 init 同步计算,这里只处理后续变化。
         .onChange(of: identityKey) { _, _ in
-            grouped = Self.computeGrouped(files: files, sortOrder: sortOrder)
+            layout = Self.computeLayout(files: files, sortOrder: sortOrder)
         }
+        // 用户在 header 右键勾选/拖动 reorder 后,把新的 customization 持久化。
+        // 同时强制至少 3 列可见 —— 用户在菜单里把第 3 列也勾掉时,把状态回滚
+        // 到 lastValidCustomization,这次 onChange 还会再 fire 一次 (newValue =
+        // last valid),但那次合法,会安静地 no-op。
+        .onChange(of: columnCustomization) { _, newValue in
+            if Self.visibleColumnCount(newValue) < 3 {
+                columnCustomization = lastValidCustomization
+                return
+            }
+            lastValidCustomization = newValue
+            columnCustomizationJSON = Self.encodeCustomization(newValue)
+        }
+    }
+
+    /// Name 列锚定永远算 1。其余列查 customization 里的 visibility:
+    /// `.hidden` 不算;`.visible` / `.automatic` 都算可见。
+    private static let optionalColumnIDs = ["size", "dateAdded", "dateModified", "tags", "kind"]
+    private static func visibleColumnCount(_ c: TableColumnCustomization<FileNode>) -> Int {
+        var count = 1   // name 锚定
+        for id in optionalColumnIDs where c[visibility: id] != .hidden {
+            count += 1
+        }
+        return count
     }
 
     private struct GroupedSlice: Identifiable {
         let bucket: DateBucket
         let files: [FileNode]
         var id: Int { bucket.rawValue }
+    }
+
+    /// 表格的两种渲染形态。grouped 时按日期分桶(section 标题 = "今天 / 本周"
+    /// 之类);flat 时单段平铺,跟当前非日期排序对得上。
+    private enum Layout {
+        case grouped([GroupedSlice])
+        case flat([FileNode])
     }
 
     /// Cheap stable digest of the inputs that affect grouping/sort.
@@ -149,19 +221,40 @@ struct FileTableView: View {
         return "\(files.count)|\(firstID)|\(lastID)|\(sortKey)"
     }
 
-    /// `static` 版本能在 init 阶段被调用(那时 self 还没构造完)。
-    private static func computeGrouped(
+    /// 决定当前 sort 下的渲染形态。`static` 是为了能在 init 里调(那时 self
+    /// 还没构造完)。规则:
+    ///   - 主排序 = `dateAdded` → 按 dateAdded 分桶
+    ///   - 主排序 = `dateModified` → 按 dateModified 分桶
+    ///   - 其他(name / size / kind 等) → 不分桶,平铺
+    /// 这样 section 标题永远跟当前排序的"维度"对齐,不会出现"今天"组里
+    /// 排着 3 周前修改的文件这种困惑。
+    private static func computeLayout(
         files: [FileNode],
         sortOrder: [KeyPathComparator<FileNode>]
-    ) -> [GroupedSlice] {
+    ) -> Layout {
+        let primary = sortOrder.first?.keyPath
+        let bucketKey: KeyPath<FileNode, Date>?
+        if primary == \FileNode.dateModified {
+            bucketKey = \.dateModified
+        } else if primary == \FileNode.dateAdded {
+            bucketKey = \.dateAdded
+        } else {
+            bucketKey = nil
+        }
+
+        guard let bucketKey else {
+            return .flat(files.sorted(using: sortOrder))
+        }
+
         var byBucket: [DateBucket: [FileNode]] = [:]
         for f in files {
-            byBucket[DateBucket.bucket(for: f.dateAdded), default: []].append(f)
+            byBucket[DateBucket.bucket(for: f[keyPath: bucketKey]), default: []].append(f)
         }
-        return DateBucket.allCases.compactMap { b in
+        let slices = DateBucket.allCases.compactMap { b -> GroupedSlice? in
             guard let arr = byBucket[b], !arr.isEmpty else { return nil }
             return GroupedSlice(bucket: b, files: arr.sorted(using: sortOrder))
         }
+        return .grouped(slices)
     }
 
     /// Right-click on an unselected row should target *that* row, even if
@@ -213,6 +306,23 @@ struct FileTableView: View {
         // 这里走到的一定是「点击 + 没拖动」。
         selection = [file.id]
         selectionAnchor = file.id
+    }
+
+    /// JSON-encode `TableColumnCustomization` 用于 @AppStorage 持久化。
+    /// 失败返回空串,下一次启动用默认布局。
+    private static func encodeCustomization(_ value: TableColumnCustomization<FileNode>) -> String {
+        guard let data = try? JSONEncoder().encode(value),
+              let str = String(data: data, encoding: .utf8) else { return "" }
+        return str
+    }
+
+    /// 反向 decode;空串 / 旧数据损坏时给一个新的默认 customization。
+    private static func decodeCustomization(_ raw: String) -> TableColumnCustomization<FileNode> {
+        guard !raw.isEmpty,
+              let data = raw.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode(TableColumnCustomization<FileNode>.self, from: data)
+        else { return TableColumnCustomization<FileNode>() }
+        return decoded
     }
 
     /// Per-cell formatters as `static let` —— 之前是 computed property,

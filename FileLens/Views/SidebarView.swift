@@ -109,6 +109,10 @@ struct SidebarView: View {
                         // contextMenu 挂在 label 上,只对 workspace 行生效;若挂在
                         // DisclosureGroup 外侧会泄漏到所有子规则的右键菜单。
                         .contextMenu {
+                            Button("workspace.contextmenu.openInFinder") {
+                                openInFinder(ws)
+                            }
+                            Divider()
                             Button("workspace.contextmenu.settings") {
                                 onEditWorkspace(ws)
                             }
@@ -235,6 +239,21 @@ struct SidebarView: View {
         let sorted = ws.rules.sorted(by: { $0.priority < $1.priority })
         if showEmptyRules { return sorted }
         return sorted.filter { filesCount(for: ws, tag: $0.name) > 0 }
+    }
+
+    /// 在 Finder 中打开 workspace 对应的文件夹。文件夹不存在(用户在外面 mv /
+    /// rm 掉了)时给一条 Toast 提示,而不是静默 no-op —— 不然用户会以为右键
+    /// 菜单坏了。
+    private func openInFinder(_ ws: Workspace) {
+        let url = URL(fileURLWithPath: ws.folderPath)
+        guard FileManager.default.fileExists(atPath: ws.folderPath) else {
+            ToastCenter.shared.error(String(format:
+                NSLocalizedString("workspace.openInFinder.missing.format",
+                    value: "Folder not found: %@",
+                    comment: ""), ws.folderPath))
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     private func openSystemTrash() {

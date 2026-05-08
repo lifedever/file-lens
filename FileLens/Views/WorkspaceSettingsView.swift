@@ -3,14 +3,21 @@ import SwiftData
 
 /// 单个 workspace 的配置面板。从 sidebar 右键 → 文件夹设置 唤起。
 ///
-/// 关闭时如果改了任何字段,会触发一次 rescan(走当前的协调器),让递归 /
-/// 深度 / 排除列表的变更立刻生效。
+/// 视觉模仿 macOS System Settings:顶部 icon-above-label 的 tab toolbar
+/// (通用 / 范围 / 排除),下方是当前 tab 的 Form 内容,底部一行 Cancel / Save。
+/// **没用 SwiftUI `TabView`** —— 它在 sheet 里 fall back 到紧凑文字标签,
+/// 跟 Settings scene 那种大图标 toolbar 长得不一样;且 TabView 会强制按
+/// 第一帧最高的 tab 撑高,空白区难以收敛。换成自定义 tab bar + switch
+/// 之后 sheet 高度直接跟当前 tab 内容走,看起来干净。
 struct WorkspaceSettingsView: View {
     @Bindable var workspace: Workspace
     /// 关闭时回调,通常是父页拿来重扫的钩子。
     let onSaved: (Workspace) -> Void
 
     @Environment(\.dismiss) private var dismiss
+
+    private enum Tab: Hashable { case general, scope, exclude }
+    @State private var tab: Tab = .general
 
     /// 把递归这一栏抽成本地 state,避免 toggle 跟 maxDepth 字段实时绑定时
     /// 频繁触发 SwiftData 写入,关窗时再统一回写。
@@ -37,128 +44,183 @@ struct WorkspaceSettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
+            tabBar
             Divider()
-            Form {
-                // 显示名 + 路径(只读)。不用 LabeledContent —— 它在 Form.grouped
-                // 里会把 trailing 控件区压窄,带 Stepper 之类的复合控件就被
-                // 挤成竖排。手动 HStack 完全可控。TextField 用 prompt 而不是
-                // title,否则 Form 会把 title 字符串当成第二个 label 渲染。
-                Section {
-                    labeledRow("workspace.settings.displayName") {
-                        TextField("",
-                                  text: $displayName,
-                                  prompt: Text(verbatim: workspace.name))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 240)
-                    }
-                    labeledRow("workspace.settings.path") {
-                        Text(verbatim: workspace.folderPath)
-                            .font(.callout)
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .textSelection(.enabled)
-                    }
-                }
-
-                // 递归 + 深度 + 是否包含文件夹
-                Section {
-                    Toggle("workspace.settings.recursive", isOn: $recursive)
-                    if recursive {
-                        labeledRow("workspace.settings.maxDepth") {
-                            HStack(spacing: 6) {
-                                TextField("",
-                                          text: $maxDepthText,
-                                          prompt: Text("workspace.settings.maxDepth.placeholder"))
-                                    .textFieldStyle(.roundedBorder)
-                                    .multilineTextAlignment(.trailing)
-                                    .monospacedDigit()
-                                    .frame(width: 80)
-                                Stepper("", value: depthBinding, in: 0...20)
-                                    .labelsHidden()
-                                    .controlSize(.small)
-                            }
-                        }
-                    }
-                    Toggle("workspace.settings.includeFolders", isOn: $includeFolders)
-                } header: {
-                    Text("workspace.settings.section.scope")
-                } footer: {
-                    Text(scopeFooter)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // 该 workspace 专属排除项
-                Section {
-                    TextEditor(text: $extraIgnoreFolders)
-                        .font(.callout.monospaced())
-                        .scrollContentBackground(.hidden)
-                        .frame(minHeight: 64, maxHeight: 100)
-                        .padding(6)
-                        .background(Color(nsColor: .textBackgroundColor),
-                                    in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
-                        )
-                } header: {
-                    Text("workspace.settings.extraIgnore.label")
-                        .textCase(nil)
-                        .font(.callout.weight(.semibold))
-                        .foregroundStyle(.primary)
-                } footer: {
-                    Text("workspace.settings.extraIgnore.hint")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                // 监听
-                Section {
-                    Toggle("workspace.settings.watchEnabled", isOn: $watchEnabled)
-                } footer: {
-                    Text("workspace.settings.watchEnabled.hint")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
-            // 内容很短(尤其 recursive 关掉时),用 scrollDisabled + fixedSize
-            // 让 sheet 高度自适应,免得空 padding 顶出多余的滚动条。
-            .scrollDisabled(true)
-            .fixedSize(horizontal: false, vertical: true)
-
+            content
             Divider()
             footer
         }
-        .frame(width: 480)
+        .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    // MARK: - Header / Footer
+    // MARK: - Tab bar
 
-    private var header: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("workspace.settings.title")
-                    .font(.headline)
-                Text(verbatim: workspace.effectiveName)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
+    private var tabBar: some View {
+        HStack(spacing: 4) {
+            Spacer(minLength: 0)
+            tabButton(.general,
+                      label: "workspace.settings.tab.general",
+                      icon: "gear")
+            tabButton(.scope,
+                      label: "workspace.settings.tab.scope",
+                      icon: "square.3.layers.3d")
+            tabButton(.exclude,
+                      label: "workspace.settings.tab.exclude",
+                      icon: "minus.circle")
+            Spacer(minLength: 0)
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(.bar)
     }
 
+    @ViewBuilder
+    private func tabButton(_ value: Tab,
+                           label: LocalizedStringKey,
+                           icon: String) -> some View {
+        let active = tab == value
+        Button {
+            tab = value
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon)
+                    .font(.system(size: 20, weight: .regular))
+                    .foregroundStyle(active ? Color.accentColor : Color.secondary)
+                Text(label)
+                    .font(.caption)
+                    .foregroundStyle(active ? Color.accentColor : Color.secondary)
+            }
+            .frame(width: 80)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(active ? Color.accentColor.opacity(0.15) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Tab content
+
+    @ViewBuilder
+    private var content: some View {
+        switch tab {
+        case .general: generalTab
+        case .scope:   scopeTab
+        case .exclude: excludeTab
+        }
+    }
+
+    /// 通用:显示名 / 路径 / 监听变化。
+    private var generalTab: some View {
+        Form {
+            Section {
+                labeledRow("workspace.settings.displayName") {
+                    TextField("",
+                              text: $displayName,
+                              prompt: Text(verbatim: workspace.name))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 240)
+                }
+                labeledRow("workspace.settings.path") {
+                    Text(verbatim: workspace.folderPath)
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
+            }
+
+            Section {
+                Toggle("workspace.settings.watchEnabled", isOn: $watchEnabled)
+            } footer: {
+                Text("workspace.settings.watchEnabled.hint")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 范围:递归 / 深度 / 是否包含文件夹。
+    private var scopeTab: some View {
+        Form {
+            Section {
+                Toggle("workspace.settings.recursive", isOn: $recursive)
+                if recursive {
+                    labeledRow("workspace.settings.maxDepth") {
+                        HStack(spacing: 6) {
+                            TextField("",
+                                      text: $maxDepthText,
+                                      prompt: Text("workspace.settings.maxDepth.placeholder"))
+                                .textFieldStyle(.roundedBorder)
+                                .multilineTextAlignment(.trailing)
+                                .monospacedDigit()
+                                .frame(width: 80)
+                            Stepper("", value: depthBinding, in: 0...20)
+                                .labelsHidden()
+                                .controlSize(.small)
+                        }
+                    }
+                }
+                Toggle("workspace.settings.includeFolders", isOn: $includeFolders)
+            } footer: {
+                Text(scopeFooter)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// 排除:此 workspace 专属忽略文件夹列表。
+    private var excludeTab: some View {
+        Form {
+            Section {
+                TextEditor(text: $extraIgnoreFolders)
+                    .font(.callout.monospaced())
+                    .scrollContentBackground(.hidden)
+                    .frame(minHeight: 140, maxHeight: 200)
+                    .padding(6)
+                    .background(Color(nsColor: .textBackgroundColor),
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.25), lineWidth: 0.5)
+                    )
+            } header: {
+                Text("workspace.settings.extraIgnore.label")
+                    .textCase(nil)
+                    .font(.callout.weight(.semibold))
+                    .foregroundStyle(.primary)
+            } footer: {
+                Text("workspace.settings.extraIgnore.hint")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .scrollDisabled(true)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - Footer
+
     private var footer: some View {
-        HStack {
+        HStack(spacing: 8) {
             Spacer()
             Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
@@ -168,12 +230,13 @@ struct WorkspaceSettingsView: View {
             }
             .keyboardShortcut(.defaultAction)
         }
-        .padding(12)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
     }
 
     /// 一行 "label + 控件" 的 row。等价于 LabeledContent 但不会因为 Form
     /// 对 LabeledContent 做特殊布局而把 trailing 控件压窄(Stepper 之类的
-    /// 复合控件被压会被截成竖排)。我们手动 HStack,完全可控。
+    /// 复合控件被压会被截成竖排)。
     @ViewBuilder
     private func labeledRow<Trailing: View>(
         _ key: LocalizedStringKey,
