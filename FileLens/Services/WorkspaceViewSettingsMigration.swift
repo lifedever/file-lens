@@ -8,12 +8,12 @@ import SwiftData
 /// 老的 UserDefaults key 故意 *不* 删除 —— 万一用户回滚旧 build 还能读到。
 @MainActor
 enum WorkspaceViewSettingsMigration {
-    static let didRunKey = "filelens.viewMigration.v1.done"
+    private static let migratedKey = "filelens.viewMigration.v1.done"
 
     /// `defaults` 参数留出 testing 注入点。生产路径调用方传 `.standard`。
     static func runIfNeeded(context: ModelContext,
                             defaults: UserDefaults = .standard) {
-        guard !defaults.bool(forKey: didRunKey) else { return }
+        guard !defaults.bool(forKey: migratedKey) else { return }
 
         let globalViewModeRaw = defaults.object(forKey: "filelens.viewMode") as? Int ?? 2
         let rawIconSize = defaults.object(forKey: "filelens.gridIconSize") as? Double ?? 80
@@ -28,6 +28,6 @@ enum WorkspaceViewSettingsMigration {
             }
             try? context.save()
         }
-        defaults.set(true, forKey: didRunKey)
+        defaults.set(true, forKey: migratedKey)
     }
 }
