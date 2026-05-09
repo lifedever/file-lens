@@ -57,7 +57,12 @@ struct ContentView: View {
     /// 当前正在编辑设置的 workspace。打开 WorkspaceSettingsView sheet。
     @State private var editingWorkspace: Workspace?
     @Environment(\.modelContext) private var modelContext
-    @Query private var workspaces: [Workspace]
+    @Environment(\.workspaceStoreManager) private var storeManager
+    /// 跟 SidebarView 的 @Query 同样过滤掉 pending deletion —— 否则用户删
+    /// 大 workspace 后,workspaces.isEmpty / count 还把它算进去,空状态 UI
+    /// 不会出现 / 计数错。
+    @Query(filter: #Predicate<Workspace> { !$0.isPendingDeletion })
+    private var workspaces: [Workspace]
 
     /// 视图模式 binding,绑到当前选中 workspace。selectedWorkspace == nil
     /// 时(空状态)getter 返回 .list 兜底,setter no-op —— 此时 toolbar 本来
@@ -111,6 +116,11 @@ struct ContentView: View {
                             NSLocalizedString("workspace.reindex.toast.done",
                                 value: "Reindex complete", comment: "")
                         )
+                    }
+                },
+                onRemoveWorkspace: { ws in
+                    Task {
+                        await coordinator?.removeWorkspace(ws)
                     }
                 }
             )
@@ -189,8 +199,8 @@ struct ContentView: View {
         }
         .background(hiddenShortcuts)
         .task {
-            if coordinator == nil {
-                coordinator = WorkspaceCoordinator(container: modelContext.container)
+            if coordinator == nil, let manager = storeManager {
+                coordinator = WorkspaceCoordinator(storeManager: manager)
             }
         }
         .onChange(of: selectedWorkspace) { _, ws in
@@ -225,39 +235,128 @@ struct ContentView: View {
         .focusedValue(\.activeWorkspaceName, selectedWorkspace?.name)
     }
 
-    private func filesForCurrentSelection(workspace ws: Workspace) -> [FileNode] {
-        // 廉价 memo key:同 (workspace, selection, search, file count) 直接命中
-        // 缓存,跳过整条过滤链。SwiftData 增删文件会改 file count 触发重算。
-        // tag 改动不在 key 里 —— reapplyRulesIfNeeded 末尾会调用 invalidate
-        // 让重打 tag 后下次能强制重算。
-        let key = filesMemo.key(workspace: ws,
-                                selection: selection,
-                                search: debouncedSearchText)
-        if filesMemo.lastKey == key {
-            return filesMemo.lastResult
+    private func filesForCurrentSelection(workspace ws: Workspace) -> [FileSnapshot] {
+        // 多 key cache:同 workspace 里 workspace ↔ 各 tag 来回切第二次起 O(1)。
+        // workspace.fileCount 变化(scan 完成写回)整个 cache 清空。
+        if let cached = filesMemo.get(workspace: ws,
+                                      selection: selection,
+                                      search: debouncedSearchText) {
+            return cached
         }
 
+        // 走 per-workspace store 取 FileNode。同一个 store 里的所有 FileNode
+        // 都是这一个 workspace 的(物理隔离),所以不需要 workspace.id predicate。
+        guard let manager = storeManager,
+              let storeCtx = try? manager.store(for: ws.id).mainContext else {
+            return []
+        }
+
+        // 过滤下推到 SQL。老实现先 fetch 全表 → in-memory `.tags` 遍历过滤,
+        // 11k+ 节点每个都触发 SwiftData lazy fault 单条 SQL roundtrip,主线
+        // 程卡到秒级。SidebarView.filesCount 已经是这套写法,这里对齐。
+        // sortBy 顺手交给 SQL 排,渲染层桶内再 sort 不会重复扫全表。
+        let sortByDateAddedDesc = [SortDescriptor(\FileNode.dateAdded, order: .reverse)]
         let base: [FileNode]
-        let present = ws.files.filter { $0.isPresent }
         switch selection {
         case .tag(_, let name):
-            base = present.filter { $0.tags.contains(where: { $0.name == name }) }
+            // 用 ruleID 而非 rule.name —— name 是 @Bindable 实时字段,编辑器
+            // 输入时会跟 FileTag.name 短暂错位,误命中空集。规则被删后
+            // selection 暂停留 → 空列表,sidebar 下一帧那条 tag 自然消失。
+            guard let ruleID = ws.rules.first(where: { $0.name == name })?.id else {
+                base = []
+                break
+            }
+            let descriptor = FetchDescriptor<FileNode>(
+                predicate: #Predicate<FileNode> { f in
+                    f.isPresent && f.tags.contains { $0.ruleID == ruleID }
+                },
+                sortBy: sortByDateAddedDesc
+            )
+            base = (try? storeCtx.fetch(descriptor)) ?? []
         case .uncategorized:
-            base = present.filter { $0.tags.isEmpty }
+            let descriptor = FetchDescriptor<FileNode>(
+                predicate: #Predicate<FileNode> { f in
+                    f.isPresent && f.tags.isEmpty
+                },
+                sortBy: sortByDateAddedDesc
+            )
+            base = (try? storeCtx.fetch(descriptor)) ?? []
         default:
-            base = present
+            let descriptor = FetchDescriptor<FileNode>(
+                predicate: #Predicate<FileNode> { $0.isPresent },
+                sortBy: sortByDateAddedDesc
+            )
+            base = (try? storeCtx.fetch(descriptor)) ?? []
         }
 
-        let result = debouncedSearchText.isEmpty
+        // 搜索字段(name)是 attribute 不是 relationship,内存遍历不触发
+        // fault;SwiftData #Predicate 也不支持 localizedCaseInsensitiveContains,
+        // 这一步留在内存里。
+        let filtered: [FileNode] = debouncedSearchText.isEmpty
             ? base
             : base.filter { $0.name.localizedCaseInsensitiveContains(debouncedSearchText) }
 
-        // 注意:不再做外层 sort —— FileTableView/FileGridView 内部都按当前
-        // sortOrder 重新分桶+排序,外层 sort 永远被覆盖,白做一次 O(n log n)。
+        // 转 sendable struct snapshot —— cell 渲染时不持有 @Model 引用,跳过
+        // SwiftUI ObservationRegistrar 的 KeyPath 注册 / cancel 风暴。
+        let result: [FileSnapshot] = filtered.map { FileSnapshot($0) }
 
-        filesMemo.lastKey = key
-        filesMemo.lastResult = result
+        filesMemo.set(workspace: ws,
+                      selection: selection,
+                      search: debouncedSearchText,
+                      files: result)
         return result
+    }
+
+    /// 把 FileSnapshot 列表反查回 FileNode managed objects。点击 / 拖拽 /
+    /// 右键菜单等操作入口用 —— 操作流程需要 FileNode (modelContext 写改)。
+    /// 仅在用户操作那一刻执行,不在持续 render 路径,observation 开销可接受。
+    private func resolveFileNodes(_ snapshots: [FileSnapshot]) -> [FileNode] {
+        guard !snapshots.isEmpty,
+              let ws = selectedWorkspace,
+              let manager = storeManager,
+              let storeCtx = try? manager.store(for: ws.id).mainContext
+        else { return [] }
+        let ids = Set(snapshots.map(\.id))
+        let descriptor = FetchDescriptor<FileNode>(
+            predicate: #Predicate<FileNode> { ids.contains($0.id) }
+        )
+        let nodes = (try? storeCtx.fetch(descriptor)) ?? []
+        // 保持 snapshot 顺序
+        let byID = Dictionary(uniqueKeysWithValues: nodes.map { ($0.id, $0) })
+        return snapshots.compactMap { byID[$0.id] }
+    }
+
+    private func resolveFileNode(_ snapshot: FileSnapshot) -> FileNode? {
+        resolveFileNodes([snapshot]).first
+    }
+
+    /// `[fileID : [tag display names]]` map,Tags 列渲染用。FilesMemo lazy
+    /// 缓存,fileCount 变化(scan 完成)整 bucket 清空 → 下次重建。
+    /// 第一次 build:fetch 全 workspace 含 rule tag 的 FileNode + 解 tags
+    /// 关系,主线程 ~100ms 量级一次。后续 SwiftUI body recompute 命中 cache。
+    private func tagsMapForWorkspace(_ ws: Workspace) -> [UUID: [String]] {
+        guard let manager = storeManager,
+              let storeCtx = try? manager.store(for: ws.id).mainContext
+        else { return [:] }
+        return filesMemo.tagsByFileID(workspace: ws) {
+            let descriptor = FetchDescriptor<FileNode>(
+                predicate: #Predicate<FileNode> { f in
+                    f.isPresent && !f.tags.isEmpty
+                }
+            )
+            let nodes = (try? storeCtx.fetch(descriptor)) ?? []
+            var byFile: [UUID: [String]] = [:]
+            byFile.reserveCapacity(nodes.count)
+            for node in nodes {
+                let names = node.tags.compactMap { tag -> String? in
+                    tag.source == "rule" ? tag.name : nil
+                }
+                if !names.isEmpty {
+                    byFile[node.id] = names
+                }
+            }
+            return byFile
+        }
     }
 
     private func addFolder() {
@@ -314,14 +413,12 @@ struct ContentView: View {
     }
 
     private func reapplyRulesIfNeeded() {
-        guard let ws = selectedWorkspace else { return }
-        Task {
-            let indexer = FileIndexer(container: modelContext.container)
-            try? indexer.applyRules(workspace: ws)
-            try? modelContext.save()
-            // tag 重打过,memo 里基于 file count + selection name 算的 key
-            // 没变化,但内容已经变了 —— 强制 invalidate 让下次 filter 重跑。
-            await MainActor.run { filesMemo.invalidate() }
+        guard let ws = selectedWorkspace, let manager = storeManager else { return }
+        let wsID = ws.id
+        Task { @MainActor in
+            let indexer = FileIndexer(storeManager: manager)
+            try? await indexer.applyRules(workspaceID: wsID)
+            filesMemo.invalidate()
         }
     }
 
@@ -347,18 +444,63 @@ struct ContentView: View {
 
     @ViewBuilder
     private func workspaceDetail(_ ws: Workspace) -> some View {
+        if ws.isIndexing {
+            // 关键 gate:scanning 期间根本不读 ws.files,也不 mount Table/Grid。
+            // 这一段时间背景 actor 会跑完 enumerate + insert + applyRules + save,
+            // ws.files 总数从 0 飙到上万。如果 UI 这边在跑 filter/sort/render,
+            // 每次 save 通知都会触发 11k 行 NSTableView reentrant reload —— UI 卡死。
+            // 切到 ready 之后才一次性渲染最终数据。
+            indexingProgressView(ws)
+        } else {
+            readyDetail(ws)
+        }
+    }
+
+    @ViewBuilder
+    private func indexingProgressView(_ ws: Workspace) -> some View {
+        let done = ws.indexProgressDone
+        let total = ws.indexProgressTotal
+        VStack(spacing: 12) {
+            ProgressView(value: total > 0 ? Double(done) / Double(total) : nil) {
+                Text(verbatim: NSLocalizedString("indexing.title",
+                    value: "Indexing folder…", comment: ""))
+                    .font(.headline)
+            } currentValueLabel: {
+                if total > 0 {
+                    Text(verbatim: "\(done) / \(total)")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(verbatim: "\(done)")
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .progressViewStyle(.linear)
+            .frame(maxWidth: 360)
+            Text(verbatim: NSLocalizedString("indexing.subtitle",
+                value: "Files will appear once indexing completes.", comment: ""))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .padding()
+    }
+
+    @ViewBuilder
+    private func readyDetail(_ ws: Workspace) -> some View {
         let files = filesForCurrentSelection(workspace: ws)
-        let selectedFiles = files.filter { selectedFileIDs.contains($0.id) }
-        // SwiftData lazy fault(f.tags) + icon 同步 IO 都在父 body 收完,让
-        // InspectorView 拿纯值。一直构建(不 gate showInspector)是为了 slide-out
-        // 期间 inspector 还显示着旧数据,而不是闪成 "No selection"。
-        // 把 workspace.rules 一起塞进 snapshot,Inspector 用来给标签匹配颜色
-        // (跟 sidebar 那边的圆点颜色对齐)。读 ws.rules 在 main body 里同步
-        // 走完,不会触发动画期间的 fault。
+        let selectedSnapshots = files.filter { selectedFileIDs.contains($0.id) }
+        // Inspector 需要 FileNode 读 tags 关系。但只 resolve selected(通常 1-3 个),
+        // 不影响 cell 渲染主路径。
+        let selectedFiles = resolveFileNodes(selectedSnapshots)
         let workspaceRules = ws.rules
         let inspectorSnapshot: InspectorSnapshot? = selectedFiles.first.map { f in
             InspectorSnapshot(file: f, rules: workspaceRules)
         }
+        // Tags 列用的 fileID → tag 名字 map。FilesMemo 内 lazy 缓存,fileCount
+        // 变化(scan 完成写回)清空。第一次构造跑 ~100ms 主线程,之后命中 0ms。
+        let tagsByFileID = tagsMapForWorkspace(ws)
         // 不用 SwiftUI 的 .inspector(isPresented:) —— 它底层是 NSSplitViewController,
         // pane slide 动画跟内容首帧渲染会撞,表现就是用户看到的"半 → 卡 → 半"
         // (slide 到一半 SwiftUI 同步渲染 inspector 内容、阻塞 main、动画卡住,
@@ -366,10 +508,10 @@ struct ContentView: View {
         // 渲染和位移共享一个动画时钟,不会两边互相阻塞。
         HStack(spacing: 0) {
             VStack(spacing: 0) {
-                fileBody(files: files)
+                fileBody(files: files, tagsByFileID: tagsByFileID)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 Divider()
-                statusBar(files: files, selectedFiles: selectedFiles)
+                statusBar(files: files, selectedFiles: selectedSnapshots)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
@@ -405,19 +547,34 @@ struct ContentView: View {
     private var inspectorWidth: CGFloat { 280 }
 
     @ViewBuilder
-    private func fileBody(files: [FileNode]) -> some View {
+    private func fileBody(files: [FileSnapshot], tagsByFileID: [UUID: [String]]) -> some View {
         if let ws = selectedWorkspace {
             // 两种视图始终都在 view tree 里,toggle grid/list 只切 opacity ——
             // 避免 SwiftUI _ConditionalContent 切分支带来的 teardown→空帧→重建
             // (~50ms)。workspace 切换时仍用 .id(ws.id) 让两个子视图都重 init,
-            // @State (列定制 / 缓存) 跟着重置。
+            // @State(列定制 / 缓存)跟着重置。
+            //
+            // 只有当前可见的视图收 files,隐藏的永远收 [] —— selection 切换
+            // 时只让一个 NSTableView / Grid 扛 reload,主线程不会被双倍工作吃死。
+            // view mode toggle(cmd-1 / cmd-2)时另一边第一次 mount 会卡一下
+            // (从 [] 到 N 行 layout),但这是低频操作,远比每次 selection
+            // 切换都两个视图同时 reload 划算。
             let mode = viewMode.wrappedValue
+            let gridFiles  = mode == .grid ? files : []
+            let tableFiles = mode == .list ? files : []
             ZStack {
-                FileGridView(workspace: ws, files: files, selection: $selectedFileIDs)
+                FileGridView(workspace: ws,
+                             files: gridFiles,
+                             selection: $selectedFileIDs,
+                             resolveNodes: resolveFileNodes)
                     .id(ws.id)
                     .opacity(mode == .grid ? 1 : 0)
                     .allowsHitTesting(mode == .grid)
-                FileTableView(workspace: ws, files: files, selection: $selectedFileIDs)
+                FileTableView(workspace: ws,
+                              files: tableFiles,
+                              tagsByFileID: tagsByFileID,
+                              selection: $selectedFileIDs,
+                              resolveNodes: resolveFileNodes)
                     .id(ws.id)
                     .opacity(mode == .list ? 1 : 0)
                     .allowsHitTesting(mode == .list)
@@ -553,35 +710,44 @@ struct ContentView: View {
 
     @ViewBuilder
     private var selectionKeys: some View {
+        // .disabled 必须只读 @State `selectedFileIDs`(Set<UUID>),不能调
+        // currentSelection —— 后者每次都跑 filesForCurrentSelection,11 个
+        // hidden button × body 高频 recompute(indexing 期间 FileIndexer 每
+        // 200 个文件 save 一次,每次都 @Bindable 通知整个 ContentView body
+        // 重 build)= 数百次 ffcs/sec,顺带触发 SidebarView 的 fetchCount
+        // 风暴(每秒 300+ SQL),主线程被 SQL 阻塞 → UI 卡死。
+        // action closure 里的 currentSelection 是惰性的,点击时才跑一次,OK。
+        let isEmpty = selectedFileIDs.isEmpty
+        let isSingle = selectedFileIDs.count == 1
         Group {
             Button("Open") { FileActions.open(currentSelection) }
                 .keyboardShortcut("o", modifiers: .command)
-                .disabled(currentSelection.isEmpty).hidden()
+                .disabled(isEmpty).hidden()
             Button("Open (alt)") { FileActions.open(currentSelection) }
                 .keyboardShortcut(.downArrow, modifiers: .command)
-                .disabled(currentSelection.isEmpty).hidden()
+                .disabled(isEmpty).hidden()
             Button("Reveal in Finder") { FileActions.reveal(currentSelection) }
                 .keyboardShortcut("r", modifiers: .command)
-                .disabled(currentSelection.isEmpty).hidden()
+                .disabled(isEmpty).hidden()
             Button("Move to Trash") {
                 FileActions.moveToTrash(currentSelection, modelContext: modelContext)
             }
             .keyboardShortcut(.delete, modifiers: .command)
-            .disabled(currentSelection.isEmpty).hidden()
+            .disabled(isEmpty).hidden()
             Button("Copy Path") { FileActions.copyPath(currentSelection) }
                 .keyboardShortcut("c", modifiers: [.command, .option])
-                .disabled(currentSelection.isEmpty).hidden()
+                .disabled(isEmpty).hidden()
             Button("Copy to…") { FileActions.copyTo(currentSelection) }
                 .keyboardShortcut("c", modifiers: [.command, .shift])
-                .disabled(currentSelection.isEmpty).hidden()
+                .disabled(isEmpty).hidden()
             Button("Move to…") {
                 FileActions.moveTo(currentSelection, modelContext: modelContext)
             }
             .keyboardShortcut("m", modifiers: [.command, .shift])
-            .disabled(currentSelection.isEmpty).hidden()
+            .disabled(isEmpty).hidden()
             Button("Share…") { FileActions.share(currentSelection, from: nil) }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-                .disabled(currentSelection.isEmpty).hidden()
+                .disabled(isEmpty).hidden()
             // Plain Return = rename(单文件,Finder 约定)。SwiftUI 的
             // keyboardShortcut 尊重 first-responder,搜索框等会先消费。
             Button("Rename…") {
@@ -590,17 +756,17 @@ struct ContentView: View {
                 }
             }
             .keyboardShortcut(.return, modifiers: [])
-            .disabled(currentSelection.count != 1).hidden()
+            .disabled(!isSingle).hidden()
             Button("Show Actions") {
                 ActionMenu.popUp(for: currentSelection, modelContext: modelContext)
             }
             .keyboardShortcut("k", modifiers: .command)
-            .disabled(currentSelection.isEmpty).hidden()
+            .disabled(isEmpty).hidden()
         }
     }
 
     @ViewBuilder
-    private func statusBar(files: [FileNode], selectedFiles: [FileNode]) -> some View {
+    private func statusBar(files: [FileSnapshot], selectedFiles: [FileSnapshot]) -> some View {
         let bytes: Int64 = (selectedFiles.count > 1 ? selectedFiles : files)
             .reduce(0) { $0 + $1.size }
         let label: String = {
@@ -668,12 +834,14 @@ struct ContentView: View {
         }
     }
 
-    /// Files matching the current multi-selection, in the same order they
-    /// appear on screen.
+    /// 用户当前选中的文件 (FileNode managed objects),给 hidden 快捷键 button
+    /// 的 action closure 用。点击瞬间才计算 —— body recompute 时不调用,
+    /// 不进 SwiftData observation 主路径。
     private var currentSelection: [FileNode] {
         guard let ws = selectedWorkspace else { return [] }
-        return filesForCurrentSelection(workspace: ws)
+        let snapshots = filesForCurrentSelection(workspace: ws)
             .filter { selectedFileIDs.contains($0.id) }
+        return resolveFileNodes(snapshots)
     }
 
     private func quickLookSelected() {
@@ -733,17 +901,67 @@ struct ContentView: View {
 }
 
 /// `filesForCurrentSelection` 的 memo 容器。class 引用类型,@State 只持有
-/// 指针 —— 改 lastKey/lastResult 不触发 SwiftUI 重 render(只有 @State 指
-/// 针变了才会),适合做不影响视图的纯缓存。
+/// 指针 —— 改内部字段不触发 SwiftUI 重 render(只有 @State 指针变了才会),
+/// 适合做不影响视图的纯缓存。
+///
+/// 按 workspace 分桶,每个 workspace 内是 multi-key cache(workspace selection
+/// + 各 tag selection)。版本戳是该 workspace 的 fileCount,scan 完成写回时
+/// 仅清空那一个 workspace 的桶,跨 workspace 切回不重 fetch。
+///
+/// SwiftData FileNode 是 live managed object,silent scan 期间属性原地变,
+/// cache 持有的引用始终是最新值;只有 isPresent 反转(vanished)的 stale 行
+/// 会留在 cache 里 —— 等 fileCount 更新时一并清掉。
 private final class FilesMemo {
-    var lastKey: String = ""
-    var lastResult: [FileNode] = []
+    private struct Bucket {
+        var versionKey: String
+        var entries: [String: [FileSnapshot]]
+        /// `[fileID : tag display names]`,Tags 列用。第一次访问按需 lazy
+        /// 填充;fileCount 变化(scan 完成写回)Bucket 重建时一并清空。
+        var tagsByFileID: [UUID: [String]]?
+    }
+    private var byWorkspace: [UUID: Bucket] = [:]
 
-    /// 廉价 stable digest:workspace.id + 当前 selection + 搜索词 + 文件总数。
-    /// tag 改动会经 reapplyRulesIfNeeded 显式 invalidate,不在这里算。
-    func key(workspace ws: Workspace,
-             selection: SidebarSelection?,
-             search: String) -> String {
+    func get(workspace ws: Workspace, selection: SidebarSelection?, search: String) -> [FileSnapshot]? {
+        let v = Self.versionKey(ws: ws)
+        guard let bucket = byWorkspace[ws.id], bucket.versionKey == v else {
+            byWorkspace[ws.id] = Bucket(versionKey: v, entries: [:], tagsByFileID: nil)
+            return nil
+        }
+        let k = Self.selectionKey(selection: selection, search: search)
+        return bucket.entries[k]
+    }
+
+    func set(workspace ws: Workspace, selection: SidebarSelection?, search: String, files: [FileSnapshot]) {
+        let v = Self.versionKey(ws: ws)
+        var bucket = byWorkspace[ws.id] ?? Bucket(versionKey: v, entries: [:], tagsByFileID: nil)
+        if bucket.versionKey != v {
+            bucket = Bucket(versionKey: v, entries: [:], tagsByFileID: nil)
+        }
+        let k = Self.selectionKey(selection: selection, search: search)
+        bucket.entries[k] = files
+        byWorkspace[ws.id] = bucket
+    }
+
+    /// 取 [fileID : [tag names]] map。第一次缺失时由 caller 提供 builder
+    /// (一次性 fetch FileTag),之后 cache 命中。fileCount 变化整 bucket 清空。
+    func tagsByFileID(workspace ws: Workspace, build: () -> [UUID: [String]]) -> [UUID: [String]] {
+        let v = Self.versionKey(ws: ws)
+        var bucket = byWorkspace[ws.id] ?? Bucket(versionKey: v, entries: [:], tagsByFileID: nil)
+        if bucket.versionKey != v {
+            bucket = Bucket(versionKey: v, entries: [:], tagsByFileID: nil)
+        }
+        if let cached = bucket.tagsByFileID { return cached }
+        let built = build()
+        bucket.tagsByFileID = built
+        byWorkspace[ws.id] = bucket
+        return built
+    }
+
+    private static func versionKey(ws: Workspace) -> String {
+        "\(ws.fileCount)"
+    }
+
+    private static func selectionKey(selection: SidebarSelection?, search: String) -> String {
         let sel: String
         switch selection {
         case .none:                       sel = "_"
@@ -751,11 +969,10 @@ private final class FilesMemo {
         case .tag(_, let name):           sel = "t:\(name)"
         case .uncategorized(let id):      sel = "u:\(id)"
         }
-        return "\(ws.id)|\(sel)|\(search)|\(ws.files.count)"
+        return "\(sel)|\(search)"
     }
 
     func invalidate() {
-        lastKey = ""
-        lastResult = []
+        byWorkspace.removeAll(keepingCapacity: false)
     }
 }

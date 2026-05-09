@@ -25,12 +25,18 @@ struct PreviewHost: View {
     /// 按 FileNode.kind 决定走哪条预览路径。kind 取值见 KindClassifier。
     static func kind(for file: FileNode) -> PreviewKind {
         if file.isDirectory { return .unsupported }
-        switch file.kind {
+        return kindFor(kind: file.kind)
+    }
+
+    static func kind(for snap: FileSnapshot) -> PreviewKind {
+        if snap.isDirectory { return .unsupported }
+        return kindFor(kind: snap.kind)
+    }
+
+    private static func kindFor(kind: String) -> PreviewKind {
+        switch kind {
         case "image":                                  return .image
         case "movie", "document", "text", "code":      return .quickLook
-        // PDF / RTF / MD 由 KindClassifier 归到 "document"
-        // text / code 类 QL 也能渲染成「首页文本」首屏
-        // archive / audio / other 不参与缩略图升级
         default:                                       return .unsupported
         }
     }

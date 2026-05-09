@@ -11,7 +11,11 @@ enum SidebarSelection: Hashable {
 private let kIconSize: CGFloat = 16
 
 struct SidebarView: View {
-    @Query(sort: [SortDescriptor(\Workspace.sortOrder),
+    /// 过滤掉 isPendingDeletion=true 的 workspace —— 用户点删除后立刻 set true
+    /// 并 save,sidebar 当帧不再显示;后台 coordinator 慢慢 cascade delete。
+    /// 跨重启依然过滤,直到 Recovery 真正完成 cascade 把它从 store 抹掉。
+    @Query(filter: #Predicate<Workspace> { !$0.isPendingDeletion },
+           sort: [SortDescriptor(\Workspace.sortOrder),
                   SortDescriptor(\Workspace.createdAt)])
     private var workspaces: [Workspace]
     @Binding var selection: SidebarSelection?
@@ -25,13 +29,24 @@ struct SidebarView: View {
     let onEditWorkspace: (Workspace) -> Void
     /// 右键 → "立即重索引" 调用,父页让 coordinator 跑一次 reindex。
     let onReindex: (Workspace) -> Void
+    /// 右键 → "删除文件夹" 调用,父页通过 coordinator 串行处理:cancel scan
+    /// → 等退出 → cascade delete。直接在这里 modelContext.delete 会跟正在跑
+    /// 的 scan 抢 workspace.files,scan 也不会停。
+    let onRemoveWorkspace: (Workspace) -> Void
     @Environment(\.modelContext) private var modelContext
+    @Environment(\.workspaceStoreManager) private var storeManager
 
     @State private var collapsed: Set<UUID> = []
     @State private var ruleToDelete: Rule?
     @State private var workspaceToDelete: Workspace?
     /// 当前被鼠标 hover 的工作区行。一次只允许一个,所以用 UUID? 而不是 Set。
     @State private var hoveredWorkspaceID: UUID?
+    /// 乐观 UI 隐藏集合 —— 用户点删除后立即把 workspace 加进来,sidebar 当帧
+    /// 就从列表上消失;后台 coordinator 真正 cascade delete 上千文件的几秒
+    /// 期间 UI 已经看不到它了,不会让用户误以为"点了没反应"。
+    /// 删除真正落库后 @Query 自动 refresh,这里的标记自然失效(workspace 不
+    /// 再在 workspaces 数组里)。
+    @State private var pendingDeletionIDs: Set<UUID> = []
     /// User-visible count of items in the system Trash. Refreshed every
     /// `kTrashCountRefreshInterval` seconds — cheap directory listing,
     /// nothing recursive, hidden files skipped.
@@ -62,7 +77,7 @@ struct SidebarView: View {
 
     private var sidebarList: some View {
         List(selection: $selection) {
-            ForEach(workspaces) { ws in
+            ForEach(workspaces.filter { !pendingDeletionIDs.contains($0.id) }) { ws in
                 DisclosureGroup(isExpanded: expansionBinding(for: ws.id)) {
                     // Children render indented automatically by DisclosureGroup.
 
@@ -294,8 +309,14 @@ struct SidebarView: View {
 
     private func removeWorkspace(_ ws: Workspace) {
         if selectedWorkspace?.id == ws.id { selectedWorkspace = nil }
-        modelContext.delete(ws)
-        try? modelContext.save()
+        // 乐观 UI:立即从 sidebar 隐藏。coordinator 后台慢慢 cascade delete 上
+        // 千文件不影响视觉。用户点了立刻看到效果,不会以为"卡了/坏了"。
+        pendingDeletionIDs.insert(ws.id)
+        // 走父级 callback → coordinator.removeWorkspace。coordinator 会先
+        // cancel 在跑的 scan,等它真退出,再走 cascade delete。否则用户在大
+        // workspace 索引中途按删除,scan 还在跑,delete 同期 cascade 删 FileNode,
+        // 两边争同一份关系,既崩又僵尸。
+        onRemoveWorkspace(ws)
     }
 
     private func reorderRules(in ws: Workspace, fromOffsets source: IndexSet, toOffset destination: Int) {
@@ -328,7 +349,7 @@ struct SidebarView: View {
     /// 触发重建,重建又重新触发 hover)。
     @ViewBuilder
     private func workspaceRow(_ ws: Workspace) -> some View {
-        let count = ws.files.filter { $0.isPresent }.count
+        let count = ws.isIndexing ? 0 : presentFileCount(for: ws)
         let isHovered = hoveredWorkspaceID == ws.id
 
         HStack(spacing: 6) {
@@ -337,7 +358,9 @@ struct SidebarView: View {
                 .fontWeight(.semibold)
                 .lineLimit(1)
                 .truncationMode(.middle)
-                .layoutPriority(1)   // 名字优先吃宽度,badge 不够位置时挤掉自己
+                // 不再给名字 layoutPriority —— 名字长时(像 "DynamicMicroservice")
+                // 会把 count badge 挤到只剩 1 个字符宽,显示成 "2" 而不是 "238"。
+                // 现在让名字按 truncate 收缩,badge 完整显示。
             // 递归状态的小角标 —— 让用户一眼看到 workspace 的扫描范围。
             // 不递归时不画(默认值,无需视觉噪音);开启时显示带颜色的小箭头
             // (无穷大或带数字的深度),点上去能去到设置里改。
@@ -348,6 +371,7 @@ struct SidebarView: View {
             ZStack(alignment: .trailing) {
                 CountBadge(count: count)
                     .opacity((count > 0 && !isHovered) ? 1 : 0)
+                    .layoutPriority(1)   // badge 优先于名字吃宽度,数字必须完整
                 Button {
                     onNewRule(ws)
                 } label: {
@@ -497,21 +521,38 @@ struct SidebarView: View {
 
     // MARK: counts
 
-    /// 按 rule.id 去匹配 FileTag.ruleID 计数。早先版本是按 rule.name 匹配
-    /// FileTag.name —— 但 rule.name 是 @Bindable 实时绑定的字段,RuleEditor
-    /// 输入框每敲一个字 SwiftData 模型上的 name 立刻变,而文件上的旧 tag 还
-    /// 没被 applyRules 重打,导致 count 瞬间归零、规则在 sidebar 消失,
-    /// 用户以为被删了去重新建一个 → 重名规则。改用 ruleID 之后 name 怎么
-    /// 改都不影响 count,规则不再"看着像没了"。
+    /// 三个 count 都读 catalog 上 scan 完成时回写的缓存字段
+    /// (`fileCount` / `ruleCountsJSON` / `uncategorizedCount`),不再每次
+    /// sidebar body recompute 都跑 fetchCount。
+    ///
+    /// 之前的 fetchCount 实现:每个 rule 一次 SQL,每次 selection 变化整个
+    /// SidebarView 重 build → 30+ 次主线程 SQL,叠上 ContentView 这边 11k
+    /// 文件的 fetch,大 workspace 切换时 UI 卡死秒级。
+    ///
+    /// 时序权衡:`ruleCountsJSON` 只在 FileIndexer scan 末尾一次性写入,
+    /// 期间是上次 scan 的旧值(badge 数字短暂落后)。但 sidebar count 是
+    /// 给用户看的"大致规模",不是真实数据源 —— 列表那边照常 fetch 真实
+    /// 文件,所以 stale 一两秒不影响功能。
+    /// 用 ruleID 索引(而非 rule.name)规避 RuleEditor 输入时 name 实时
+    /// 变化导致的瞬间归零问题。
+    private func presentFileCount(for ws: Workspace) -> Int {
+        ws.fileCount
+    }
+
     private func filesCount(for ws: Workspace, rule: Rule) -> Int {
-        let ruleID = rule.id
-        return ws.files.filter { f in
-            f.isPresent && f.tags.contains(where: { $0.ruleID == ruleID })
-        }.count
+        Self.decodeRuleCounts(ws.ruleCountsJSON)[rule.id.uuidString] ?? 0
     }
 
     private func uncategorizedCount(for ws: Workspace) -> Int {
-        ws.files.filter { $0.isPresent && $0.tags.isEmpty }.count
+        ws.uncategorizedCount
+    }
+
+    private static func decodeRuleCounts(_ json: String) -> [String: Int] {
+        guard !json.isEmpty,
+              let data = json.data(using: .utf8),
+              let dict = try? JSONDecoder().decode([String: Int].self, from: data)
+        else { return [:] }
+        return dict
     }
 }
 

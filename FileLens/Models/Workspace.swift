@@ -56,11 +56,46 @@ final class Workspace {
     /// 每个 workspace 独立。
     var tableColumnCustomizationJSON: String = ""
 
+    // MARK: - 索引状态(决定 UI 该 render 数据还是 render 进度)
+    //
+    // 0 = ready (默认,迁移友好 —— 老用户数据全是 ready)
+    // 1 = scanning (背景 actor 正在跑首扫,UI 显示进度,不 mount Table/Grid)
+    //
+    // 关键:scanning 时 UI 不读 files relationship。让背景把 11k+ 个节点都
+    // 索引完、tags 也打完,再一次性切到 ready,UI 这边只渲染一次。否则进度
+    // 中途 ws.files 反复变化会触发 NSTableView reentrant reload,UI 卡死。
+    var indexStateRaw: Int = 0
+    /// 当前批次扫到的总数(累加,从 0 开始)。
+    var indexProgressDone: Int = 0
+    /// 当前批次预估总量。0 表示未知(enumerator 不预先 count,只在跑完后才有总数)。
+    /// UI 显示用 `progressDone` + (有 total 时显示分数)。
+    var indexProgressTotal: Int = 0
+
+    /// 待删除标记。用户点"移除"时立刻 set true 并 save —— 这一下是单字段写入,
+    /// 几乎瞬时,sidebar 当帧从列表过滤掉。后台 `rm` 文件 + 删 catalog 行。
+    /// 关键:这个 flag **跨重启持久化**,如果 app 在 rm 跑完前关掉,下次启动
+    /// `WorkspaceStateRecovery` 接着删掉,不会"删了的 workspace 重启后又出现"。
+    var isPendingDeletion: Bool = false
+
+    /// 缓存的当前文件总数(present)。SidebarView 需要 badge 数,但 FileNode
+    /// 现在是在**独立 SQLite 文件**里(`workspaces/<uuid>.sqlite`),
+    /// catalog 这边查不到 —— scan 完成时由 FileIndexer 显式回写到这个字段。
+    /// 没扫过 / 还在扫:0。
+    var fileCount: Int = 0
+
+    /// 每个规则匹配的文件数,JSON 编码的 `[UUID-string: Int]`。
+    /// SidebarView 拿这个出来给规则子行显示 badge。FileIndexer 在 scan 末尾
+    /// 一次性算好回写。空字符串 = 没数据(没扫过)。
+    var ruleCountsJSON: String = ""
+
+    /// 没匹配任何 rule 的文件数(未归档)。
+    var uncategorizedCount: Int = 0
+
     @Relationship(deleteRule: .cascade, inverse: \Rule.workspace)
     var rules: [Rule] = []
-
-    @Relationship(deleteRule: .cascade, inverse: \FileNode.workspace)
-    var files: [FileNode] = []
+    // 注意:**不再**有 `@Relationship var files: [FileNode]` ——
+    // FileNode 已经搬到 per-workspace 独立 SQLite,跨 store 关系 SwiftData
+    // 不支持。删除走 `WorkspaceStoreManager.deleteStore` 直接 rm 文件,毫秒级。
 
     init(id: UUID = UUID(), name: String, folderPath: String, bookmarkData: Data,
          createdAt: Date = .now, sortOrder: Int = 0,
@@ -90,4 +125,6 @@ final class Workspace {
     var effectiveName: String {
         displayName.isEmpty ? name : displayName
     }
+
+    var isIndexing: Bool { indexStateRaw == 1 }
 }

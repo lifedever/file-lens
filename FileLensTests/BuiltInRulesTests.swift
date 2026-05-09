@@ -5,7 +5,8 @@ final class BuiltInRulesTests: XCTestCase {
 
     private func file(_ name: String, ext: String, size: Int64 = 1_000_000,
                      dateAdded: Date = .now, kind: String = "other") -> FileNode {
-        FileNode(relativePath: name, name: name, ext: ext, size: size,
+        FileNode(workspaceID: UUID(),
+                 relativePath: name, name: name, ext: ext, size: size,
                  dateAdded: dateAdded, dateModified: dateAdded, kind: kind)
     }
 
@@ -22,7 +23,8 @@ final class BuiltInRulesTests: XCTestCase {
 
     func test_folder_tagged_as_folders() {
         // 文件夹条目: kind = "folder",ext 空,size 0
-        let folder = FileNode(relativePath: "MyFolder", name: "MyFolder", ext: "",
+        let folder = FileNode(workspaceID: UUID(),
+                              relativePath: "MyFolder", name: "MyFolder", ext: "",
                               size: 0, dateAdded: .now, dateModified: .now,
                               kind: "folder", isDirectory: true)
         let tags = RuleEngine.tags(for: folder, rules: BuiltInRules.all())

@@ -1,54 +1,363 @@
 import Foundation
 import SwiftData
 import UniformTypeIdentifiers
+import OSLog
 
+private let perfLog = Logger(subsystem: "com.lifedever.FileLens", category: "perf")
+
+/// 文件枚举阶段产出的中间值,Sendable —— 让 file IO 跑在 Task.detached
+/// 背景线程上,IO 阶段完全不碰 SwiftData。回到主 context 后再批量 insert。
+struct FileMetadata: Sendable {
+    let relativePath: String
+    let name: String
+    let ext: String
+    let size: Int64
+    let dateAdded: Date
+    let dateModified: Date
+    let kind: String
+    let isDirectory: Bool
+    let fileResourceID: String?
+}
+
+/// IO 阶段的配置快照,Sendable。
+struct ScanOptions: Sendable {
+    let recursive: Bool
+    let maxDepth: Int
+    let includeFolders: Bool
+    let ignoreHidden: Bool
+    let ignoreFolders: Set<String>
+}
+
+/// 双 store 架构:
+/// - **catalog**: Workspace 元数据 + Rules + Conditions
+/// - **per-workspace store**: 单一 workspace 的 FileNode + FileTag
+///
+/// `FileIndexer` 同时持有这两个 container 的 mainContext,scan 时:
+/// - 工作空间状态(indexStateRaw / progressDone / fileCount)写 catalog
+/// - 文件节点 / tag 写 workspace store
+///
+/// 删除 workspace 不再走 cascade,改为 `WorkspaceStoreManager.deleteStore` 直接
+/// `rm` 文件,毫秒级。这里 `deleteWorkspace` 现在只负责清 catalog 那行。
 @MainActor
 final class FileIndexer {
-    private let container: ModelContainer
+    private let storeManager: WorkspaceStoreManager
 
-    init(container: ModelContainer) {
-        self.container = container
+    init(storeManager: WorkspaceStoreManager) {
+        self.storeManager = storeManager
     }
 
-    /// Full scan of the workspace folder. Creates new FileNodes, updates existing ones'
-    /// lastSeenAt + metadata, marks vanished files isPresent=false. Re-evaluates rules.
-    ///
-    /// 行为受 workspace 自身设置控制:
-    /// - `recursive == false` → 只索引顶层文件,完全不进任何子目录
-    /// - `recursive == true && maxDepth == 0` → 全量递归(默认旧行为)
-    /// - `recursive == true && maxDepth == N` → 顶层算 1 级,最多递归到第 N 级
-    /// - `extraIgnoreFolders` → workspace 私有的额外排除项,跟全局列表合并
-    func scan(workspace: Workspace) async throws {
-        let ctx = container.mainContext
+    /// 测试用 —— 验证 IO 阶段是否真的脱离主线程。
+    func _testIOOffMainThread() async -> Bool {
+        let onMain = await Task.detached { pthread_main_np() != 0 }.value
+        return onMain == false
+    }
+
+    func scan(workspaceID: UUID, silent: Bool = false) async throws {
+        let catalogCtx = storeManager.catalog.mainContext
+        let descriptor = FetchDescriptor<Workspace>(
+            predicate: #Predicate<Workspace> { $0.id == workspaceID }
+        )
+        guard let workspace = try? catalogCtx.fetch(descriptor).first else { return }
         let (folderURL, _) = try BookmarkStore.resolve(bookmark: workspace.bookmarkData)
 
-        let scanStart = Date()
-        let existing = workspace.files
-        var byPath: [String: FileNode] = [:]
-        for node in existing { byPath[node.relativePath] = node }
+        // workspace store —— FileNode/FileTag 都写到这里
+        let storeCtx = try storeManager.store(for: workspaceID).mainContext
 
-        // 用户可在 设置 → 索引 里关闭跳过隐藏文件,以及配置忽略目录列表
+        let probeStart = Date()
+        func probe(_ tag: String, _ extra: Int = 0) {
+            let ms = Int(Date().timeIntervalSince(probeStart) * 1000)
+            perfLog.notice("t=\(ms, privacy: .public)ms tag=\(tag, privacy: .public) n=\(extra, privacy: .public)")
+        }
+        probe("scan-entry")
+
+        // 进入 scanning,UI gate 显示进度。silent=true(FSEvents 增量触发)跳过。
+        if !silent {
+            workspace.indexStateRaw = 1
+            workspace.indexProgressDone = 0
+            workspace.indexProgressTotal = 0
+            try catalogCtx.save()
+        }
+
+        do {
+            try await runScanBody(
+                workspace: workspace,
+                catalogCtx: catalogCtx,
+                storeCtx: storeCtx,
+                folderURL: folderURL,
+                silent: silent,
+                probe: probe
+            )
+        } catch {
+            // cancel / 异常 —— 重置 indexState,不动 store(那边的部分数据保留即可,
+            // 重新 scan 时 byPath 会找回)
+            if !silent {
+                workspace.indexStateRaw = 0
+                workspace.indexProgressDone = 0
+                workspace.indexProgressTotal = 0
+                try? catalogCtx.save()
+            }
+            throw error
+        }
+    }
+
+    private func runScanBody(
+        workspace: Workspace,
+        catalogCtx: ModelContext,
+        storeCtx: ModelContext,
+        folderURL: URL,
+        silent: Bool,
+        probe: (String, Int) -> Void
+    ) async throws {
+        // === 阶段 1:文件 IO 在 detached task 跑(背景线程,主线程不堵)===
+        let options = Self.makeScanOptions(workspace: workspace)
+        let metadata: [FileMetadata] = try await Task.detached(priority: .userInitiated) {
+            try Self.enumerateFiles(at: folderURL, options: options)
+        }.value
+        probe("io-end", metadata.count)
+
+        // === 阶段 2:回主线程,在 workspace store 上批量 insert/update FileNode ===
+        let scanStart = Date()
+        // 这个 store 里所有 FileNode 都是这一个 workspace 的(per-workspace store!)
+        // 所以查全表就行,不需要 predicate 过滤 —— 也没 ws.files O(N²) 问题。
+        let existing = (try? storeCtx.fetch(FetchDescriptor<FileNode>())) ?? []
+        var byPath: [String: FileNode] = [:]
+        byPath.reserveCapacity(existing.count)
+        for node in existing { byPath[node.relativePath] = node }
+        probe("existing-loaded", existing.count)
+
+        if !silent {
+            workspace.indexProgressTotal = metadata.count
+            try catalogCtx.save()
+        }
+
+        let workspaceID = workspace.id
+        // rules snapshot —— catalog 上读出来,scan 期间快照不变
+        let rules = workspace.rules
+        var allPresentNodes: [FileNode] = []
+        allPresentNodes.reserveCapacity(metadata.count)
+        var newNodesCount = 0
+
+        for (idx, meta) in metadata.enumerated() {
+            let node: FileNode
+            if let existingNode = byPath[meta.relativePath] {
+                // silent fast path:同 path → 假设 file 没变,仅刷 lastSeenAt
+                // 跟 isPresent。代价是 silent 模式下用户外部修改文件大小 / 重
+                // 命名后,UI 显示的元数据短暂 stale,直到下次 forceRescan
+                // (右键「立即重索引」)。trade-off 是避免 11k 次属性赋值的
+                // 主线程开销。
+                let dateModifiedChanged = existingNode.dateModified != meta.dateModified
+                let sizeChanged = existingNode.size != meta.size
+                if silent && !dateModifiedChanged && !sizeChanged {
+                    existingNode.lastSeenAt = scanStart
+                    if !existingNode.isPresent { existingNode.isPresent = true }
+                } else {
+                    existingNode.name = meta.name
+                    existingNode.ext = meta.ext
+                    existingNode.size = meta.size
+                    existingNode.dateAdded = meta.dateAdded
+                    existingNode.dateModified = meta.dateModified
+                    existingNode.kind = meta.kind
+                    existingNode.lastSeenAt = scanStart
+                    existingNode.isPresent = true
+                    existingNode.fileResourceID = meta.fileResourceID
+                    existingNode.isDirectory = meta.isDirectory
+                }
+                node = existingNode
+            } else {
+                node = FileNode(
+                    workspaceID: workspaceID,
+                    relativePath: meta.relativePath, name: meta.name, ext: meta.ext,
+                    size: meta.size, dateAdded: meta.dateAdded, dateModified: meta.dateModified,
+                    kind: meta.kind, lastSeenAt: scanStart, isPresent: true,
+                    fileResourceID: meta.fileResourceID, isDirectory: meta.isDirectory
+                )
+                storeCtx.insert(node)
+                newNodesCount += 1
+            }
+            allPresentNodes.append(node)
+
+            let processed = idx + 1
+            if processed.isMultiple(of: 25) {
+                await Task.yield()
+                try Task.checkCancellation()
+            }
+            // silent 模式(后台对账,UI 已经 ready 显示老数据)中间一次都不
+            // save,只末尾(下面的 `try storeCtx.save()`)统一写入。
+            // 每次 storeCtx.save 都触发 SwiftData observation 通知,SwiftUI
+            // Table 持有的 11k+ FileNode 数组就跟着 diff/rerender,主线程被
+            // 吃满 → 用户切 selection 卡。silent 时数据要等 scan 完才呈现
+            // 最终态,中间状态用户根本看不到,save 没意义。
+            // 非 silent(用户主动右键重索引)保留 200,因为 progress 视图就是
+            // 在显示进度,save 频率正是进度更新频率。
+            if !silent, processed.isMultiple(of: 200) {
+                workspace.indexProgressDone = processed
+                try catalogCtx.save()
+                try storeCtx.save()
+            }
+            if processed.isMultiple(of: 1000) { probe("scan-progress", processed) }
+        }
+        try storeCtx.save()
+        probe("scan-loop-end", metadata.count)
+
+        // 这一批没扫到的旧节点标记 vanished
+        var vanishedCount = 0
+        for node in existing where node.lastSeenAt < scanStart && node.isPresent {
+            node.isPresent = false
+            vanishedCount += 1
+        }
+        try storeCtx.save()
+        probe("vanished-marked", vanishedCount)
+
+        // silent 模式 fast path:文件夹完全没变化(没新增、没消失)→ 跳过
+        // applyRules + count + catalog save。FolderWatcher 会大量触发这种
+        // "没变化"的 scan(任何文件 atime/mtime 改动都触发,但绝大多数文件
+        // 不在 watch 关注的属性上有变化)。直接 return 把主线程从十几秒占用
+        // 降到只有 IO + main loop 那 1-2s。
+        if silent && newNodesCount == 0 && vanishedCount == 0 {
+            probe("silent-noop-exit", allPresentNodes.count)
+            return
+        }
+
+        // === 阶段 3:applyRules,单独一遍,workspace store 上跑 ===
+        if !rules.isEmpty {
+            if !silent {
+                workspace.indexProgressDone = 0
+                workspace.indexProgressTotal = allPresentNodes.count
+                try catalogCtx.save()
+            }
+            // silent 模式只对新增 / 从未评估过的 file applyRules(rulesEvaluatedAt
+            // 为 nil 的)。rules 没改时存量 file 的 tags 不会变,没必要重新算
+            // 11k 次主线程操作 —— 那是用户报「app 启动后 20+ 秒内切 selection
+            // 仍卡」的原因。用户改 rule 由 reapplyRulesIfNeeded 触发全量。
+            // 非 silent(首次添加 / 右键重索引)走全量。
+            let nodesToApply: [FileNode] = silent
+                ? allPresentNodes.filter { $0.rulesEvaluatedAt == nil }
+                : allPresentNodes
+            probe("rules-start", nodesToApply.count)
+            var ruleProcessed = 0
+            for node in nodesToApply {
+                applyRulesInline(to: node, rules: rules, ctx: storeCtx)
+                ruleProcessed += 1
+                if ruleProcessed.isMultiple(of: 50) {
+                    await Task.yield()
+                    try Task.checkCancellation()
+                }
+                // silent 同样不中间 save,末尾统一一次。
+                if !silent, ruleProcessed.isMultiple(of: 200) {
+                    workspace.indexProgressDone = ruleProcessed
+                    try catalogCtx.save()
+                    try storeCtx.save()
+                }
+            }
+            try storeCtx.save()
+            probe("rules-end", ruleProcessed)
+        }
+
+        // 收尾:把所有 sidebar 需要的 count 一次性算好回写 catalog。
+        var presentCount = 0
+        var uncategorized = 0
+        var ruleCounts: [String: Int] = [:]
+        for node in allPresentNodes where node.isPresent {
+            presentCount += 1
+            let ruleIDs = Set(node.tags.compactMap { $0.ruleID })
+            if ruleIDs.isEmpty {
+                uncategorized += 1
+            } else {
+                for rid in ruleIDs {
+                    ruleCounts[rid.uuidString, default: 0] += 1
+                }
+            }
+        }
+        workspace.fileCount = presentCount
+        workspace.uncategorizedCount = uncategorized
+        if let data = try? JSONEncoder().encode(ruleCounts),
+           let json = String(data: data, encoding: .utf8) {
+            workspace.ruleCountsJSON = json
+        }
+        if !silent {
+            workspace.indexStateRaw = 0
+            workspace.indexProgressDone = 0
+            workspace.indexProgressTotal = 0
+        }
+        try catalogCtx.save()
+        probe("ready", presentCount)
+    }
+
+    /// reapplyRulesIfNeeded 用:用户编辑了规则,重新跑一遍 tag。
+    func applyRules(workspaceID: UUID) async throws {
+        let catalogCtx = storeManager.catalog.mainContext
+        let descriptor = FetchDescriptor<Workspace>(
+            predicate: #Predicate<Workspace> { $0.id == workspaceID }
+        )
+        guard let workspace = try? catalogCtx.fetch(descriptor).first else { return }
+        let storeCtx = try storeManager.store(for: workspaceID).mainContext
+
+        let rules = workspace.rules
+        let nodes = (try? storeCtx.fetch(FetchDescriptor<FileNode>(
+            predicate: #Predicate<FileNode> { $0.isPresent }
+        ))) ?? []
+        var processed = 0
+        for node in nodes {
+            applyRulesInline(to: node, rules: rules, ctx: storeCtx)
+            processed += 1
+            if processed.isMultiple(of: 50) {
+                await Task.yield()
+                try Task.checkCancellation()
+            }
+            if processed.isMultiple(of: 200) {
+                try storeCtx.save()
+            }
+        }
+        try storeCtx.save()
+    }
+
+    // MARK: - Private
+
+    /// 给单个节点重打 rule tag。
+    private func applyRulesInline(to node: FileNode, rules: [Rule], ctx: ModelContext) {
+        let manualTags = node.tags.filter { $0.source == "manual" }
+        for tag in node.tags where tag.source == "rule" {
+            ctx.delete(tag)
+        }
+        node.tags = manualTags
+
+        let names = RuleEngine.tags(for: node, rules: rules)
+        for name in names {
+            let rule = rules.first(where: { $0.name == name })
+            let tag = FileTag(name: name, source: "rule", ruleID: rule?.id)
+            tag.file = node
+            ctx.insert(tag)
+            node.tags.append(tag)
+        }
+        node.rulesEvaluatedAt = .now
+    }
+
+    private static func makeScanOptions(workspace: Workspace) -> ScanOptions {
         let defaults = UserDefaults.standard
         let ignoreHidden = (defaults.object(forKey: "filelens.ignoreHidden") as? Bool) ?? true
         let globalRaw = defaults.string(forKey: "filelens.ignoreFolders")
             ?? ".git,node_modules,.build,Pods,DerivedData,.next,.cache"
         let perWorkspaceRaw = workspace.extraIgnoreFolders
-        // 全局 + 该 workspace 专属:并集
         let ignoreFolders = Set(
             (globalRaw + "," + perWorkspaceRaw)
                 .split(whereSeparator: { ",\n".contains($0) })
                 .map { $0.trimmingCharacters(in: .whitespaces) }
                 .filter { !$0.isEmpty }
         )
+        return ScanOptions(
+            recursive: workspace.recursive,
+            maxDepth: workspace.maxDepth,
+            includeFolders: workspace.includeFolders,
+            ignoreHidden: ignoreHidden,
+            ignoreFolders: ignoreFolders
+        )
+    }
 
-        let recursive = workspace.recursive
-        let maxDepth = workspace.maxDepth   // 0 = 无限制
-        let includeFolders = workspace.includeFolders
-
+    nonisolated static func enumerateFiles(at folderURL: URL,
+                                           options: ScanOptions) throws -> [FileMetadata] {
         var enumOptions: FileManager.DirectoryEnumerationOptions = [.skipsPackageDescendants]
-        if ignoreHidden { enumOptions.insert(.skipsHiddenFiles) }
-        if !recursive {
-            // 关键 flag:让 enumerator 只看顶层一层,不下钻
+        if options.ignoreHidden { enumOptions.insert(.skipsHiddenFiles) }
+        if !options.recursive {
             enumOptions.insert(.skipsSubdirectoryDescendants)
         }
 
@@ -58,13 +367,15 @@ final class FileIndexer {
                                          .contentModificationDateKey, .fileResourceIdentifierKey,
                                          .isDirectoryKey, .isHiddenKey],
             options: enumOptions
-        ) else {
-            return
-        }
+        ) else { return [] }
 
         let folderPathPrefix = folderURL.path + "/"
+        var result: [FileMetadata] = []
+        result.reserveCapacity(1024)
 
-        for case let url as URL in enumerator {
+        while let object = enumerator.nextObject() {
+            guard let url = object as? URL else { continue }
+
             let values = try url.resourceValues(forKeys: [.contentTypeKey, .fileSizeKey,
                                                           .addedToDirectoryDateKey,
                                                           .contentModificationDateKey,
@@ -75,43 +386,30 @@ final class FileIndexer {
             let parts = relForCheck.split(separator: "/")
             let isDirectory = (values.isDirectory == true)
 
-            // 命中忽略列表的目录:整个子树跳过,避免遍历 node_modules / .git
-            if isDirectory, ignoreFolders.contains(url.lastPathComponent) {
+            if isDirectory, options.ignoreFolders.contains(url.lastPathComponent) {
                 enumerator.skipDescendants()
-                continue   // 这种目录本身也不索引(用户压根不想看到)
-            }
-            // 命中忽略列表的文件名(如 .DS_Store / Thumbs.db):跳过这一个
-            if !isDirectory, ignoreFolders.contains(url.lastPathComponent) {
                 continue
             }
-            // 防御性:即使父目录未被 skipDescendants(枚举顺序意外),
-            // 也按路径过滤掉所有忽略目录里的条目
-            if parts.dropLast().contains(where: { ignoreFolders.contains(String($0)) }) {
+            if !isDirectory, options.ignoreFolders.contains(url.lastPathComponent) {
                 continue
             }
-            // 防御性深度限制:如果 enumerator 吐出超深的条目,按 maxDepth 过滤
-            if recursive, maxDepth > 0, parts.count > maxDepth {
+            if parts.dropLast().contains(where: { options.ignoreFolders.contains(String($0)) }) {
                 continue
             }
-
-            // maxDepth 时点:目录到达 maxDepth 之后停止下钻 (它本身仍被索引,
-            // 用户能看到这个文件夹条目,只是不展开其内部)
-            if isDirectory, recursive, maxDepth > 0 {
+            if options.recursive, options.maxDepth > 0, parts.count > options.maxDepth {
+                continue
+            }
+            if isDirectory, options.recursive, options.maxDepth > 0 {
                 let depth = parts.count
-                if depth >= maxDepth {
+                if depth >= options.maxDepth {
                     enumerator.skipDescendants()
                 }
             }
-
-            // 用户在 workspace 设置里关掉了"包含文件夹":目录本身不索引,
-            // 但仍要继续往下走(会进 enumerator 子树),让里面的文件被收
-            if isDirectory, !includeFolders {
+            if isDirectory, !options.includeFolders {
                 continue
             }
 
-            let relPath = relForCheck
             let name = url.lastPathComponent
-            // 文件夹:ext / size 留空,kind 用 "folder";文件按原逻辑分类
             let ext = isDirectory ? "" : url.pathExtension.lowercased()
             let size = isDirectory ? Int64(0) : Int64(values.fileSize ?? 0)
             let dateAdded = values.addedToDirectoryDate ?? .now
@@ -119,62 +417,12 @@ final class FileIndexer {
             let kind = isDirectory ? "folder" : KindClassifier.bucket(for: values.contentType ?? .data)
             let resID = (values.fileResourceIdentifier as? NSObject)?.description
 
-            if let existingNode = byPath[relPath] {
-                existingNode.name = name
-                existingNode.ext = ext
-                existingNode.size = size
-                existingNode.dateAdded = dateAdded
-                existingNode.dateModified = dateModified
-                existingNode.kind = kind
-                existingNode.lastSeenAt = scanStart
-                existingNode.isPresent = true
-                existingNode.fileResourceID = resID
-                existingNode.isDirectory = isDirectory
-            } else {
-                let node = FileNode(
-                    relativePath: relPath, name: name, ext: ext, size: size,
-                    dateAdded: dateAdded, dateModified: dateModified, kind: kind,
-                    lastSeenAt: scanStart, isPresent: true, fileResourceID: resID,
-                    isDirectory: isDirectory
-                )
-                node.workspace = workspace
-                ctx.insert(node)
-            }
+            result.append(FileMetadata(
+                relativePath: relForCheck, name: name, ext: ext, size: size,
+                dateAdded: dateAdded, dateModified: dateModified, kind: kind,
+                isDirectory: isDirectory, fileResourceID: resID
+            ))
         }
-
-        // Mark vanished files
-        for node in existing where node.lastSeenAt < scanStart && node.isPresent {
-            node.isPresent = false
-        }
-
-        // Re-apply rules
-        try ctx.save()
-        try applyRules(workspace: workspace)
-        try ctx.save()
-    }
-
-    /// Recompute FileTags (source=rule) for all present files in this workspace.
-    func applyRules(workspace: Workspace) throws {
-        let ctx = container.mainContext
-        let rules = workspace.rules
-        for node in workspace.files where node.isPresent {
-            // Drop existing rule-sourced tags (manual tags retained)
-            let manualTags = node.tags.filter { $0.source == "manual" }
-            for tag in node.tags where tag.source == "rule" {
-                ctx.delete(tag)
-            }
-            node.tags = manualTags
-
-            // Add fresh rule tags
-            let names = RuleEngine.tags(for: node, rules: rules)
-            for name in names {
-                let rule = rules.first(where: { $0.name == name })
-                let tag = FileTag(name: name, source: "rule", ruleID: rule?.id)
-                tag.file = node
-                ctx.insert(tag)
-                node.tags.append(tag)
-            }
-            node.rulesEvaluatedAt = .now
-        }
+        return result
     }
 }

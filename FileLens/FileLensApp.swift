@@ -1,22 +1,26 @@
 import SwiftUI
 import SwiftData
 
+/// 检测当前进程是不是被 XCTest 主控启动 —— 走 test host 跑 unit test 时
+/// `XCTestConfigurationFilePath` 必有(Apple 用来定位 test bundle)。
+/// 测试模式必须**避免任何 prod 副作用**:不读 prod data dir、不写 prod
+/// UserDefaults、不发更新检查请求。否则一跑测试就污染用户的实际数据。
+private let isRunningTests: Bool =
+    ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+
 @main
 struct FileLensApp: App {
-    let container: ModelContainer
+    let storeManager: WorkspaceStoreManager
+    var container: ModelContainer { storeManager.catalog }
     /// 装单实例守门 + 主窗口重开通道。Adaptor 必须挂在 @main App 上,
     /// 否则 NSApplication 不会读到这个 delegate。
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     init() {
         do {
-            let bundleID = Bundle.main.bundleIdentifier ?? "com.lifedever.FileLens"
-            let storeURL = try StoreMigration.resolveStoreURL(bundleID: bundleID)
-            let schema = Schema([Workspace.self, Rule.self, Condition.self, FileNode.self, FileTag.self])
-            let config = ModelConfiguration(schema: schema, url: storeURL)
-            container = try ModelContainer(for: schema, configurations: config)
+            self.storeManager = try WorkspaceStoreManager()
         } catch {
-            fatalError("Failed to init ModelContainer: \(error)")
+            fatalError("Failed to init WorkspaceStoreManager: \(error)")
         }
         // Note: do NOT call NSApp.* here — NSApplication is not yet initialized
         // at SwiftUI App.init() time. Apply appearance from .onAppear below.
@@ -28,6 +32,9 @@ struct FileLensApp: App {
         WindowGroup(id: "main") {
             ContentView()
                 .onAppear {
+                    // 测试模式:跳过所有 prod 副作用(主题恢复、热键注册、迁移、
+                    // 更新检查)—— 避免污染 prod UserDefaults / 发网络请求。
+                    guard !isRunningTests else { return }
                     applyPersistedAppearance()
                     GlobalShortcuts.register()
                     // Migrate older installs: rules created before
@@ -39,18 +46,22 @@ struct FileLensApp: App {
                     WorkspaceRecursiveMigration.runIfNeeded(container: container)
                     WorkspaceViewSettingsMigration.runIfNeeded(context: ModelContext(container))
                     ArchivesISOMigration.runIfNeeded(container: container)
+                    // 上次会话强退留下的"卡在索引中"状态 + 未完成 deletion 清理
+                    WorkspaceStateRecovery.runIfNeeded(storeManager: storeManager)
                     // Silent update probe — only nags if there's a newer
                     // release and we haven't checked in the last 24h.
                     UpdateService.checkInBackgroundIfNeeded()
                 }
                 .modifier(MainWindowProxyInstaller())
                 .updateSheet()
+                .environment(\.workspaceStoreManager, storeManager)
         }
         .modelContainer(container)
         .commands { FileLensCommands() }
 
         Settings {
             SettingsView()
+                .environment(\.workspaceStoreManager, storeManager)
         }
         .modelContainer(container)
     }
@@ -70,6 +81,8 @@ private struct MainWindowProxyInstaller: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onAppear {
+                // 测试模式不挂 frameAutosave,不污染 prod UserDefaults
+                guard !isRunningTests else { return }
                 AppDelegate.shared.openMainWindow = {
                     openWindow(id: "main")
                 }

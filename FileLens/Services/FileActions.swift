@@ -2,6 +2,7 @@ import Foundation
 import AppKit
 import SwiftData
 
+@MainActor
 enum FileActions {
 
     // MARK: - Reveal
@@ -206,10 +207,11 @@ enum FileActions {
 
     // MARK: - URL
 
+    @MainActor
     static func url(for file: FileNode) -> URL? {
-        guard let ws = file.workspace,
-              let (folder, _) = try? BookmarkStore.resolve(bookmark: ws.bookmarkData) else { return nil }
-        return folder.appendingPathComponent(file.relativePath)
+        // FileNode 现在不持有 workspace 关系(跨 store)。通过全局注册表查
+        // workspaceID → folder URL。注册由 WorkspaceCoordinator.activate 完成。
+        FileURLResolver.shared.url(for: file)
     }
 
     // MARK: - Helpers

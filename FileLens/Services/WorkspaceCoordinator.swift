@@ -1,71 +1,167 @@
 import Foundation
 import SwiftData
 
-/// Manages per-workspace lifecycle: initial scan + live FSEvents subscription.
-/// Owned by ContentView; restarts when the selected workspace changes.
+/// Workspace 生命周期管理。新架构(per-workspace SQLite)下:
+/// - scan 走 catalog 元数据 + per-workspace store FileNode/FileTag
+/// - 删除 workspace 直接 `rm` 那个 SQLite 文件,毫秒级
+/// - 扫描串行,FIFO 队列,切走/切回不打断
 @MainActor
 final class WorkspaceCoordinator {
-    private let container: ModelContainer
+    private let storeManager: WorkspaceStoreManager
     private var watcher: FolderWatcher?
     private var watchTask: Task<Void, Never>?
-    /// 本次 app 会话中已扫描过的 workspace。第二次切回来时直接跳过全量
-    /// scan,只重接 watcher —— 切换文件夹的可感知延迟从 ~1s 降到 ~10ms。
-    /// trade-off:在被切走期间外部修改不会被自动同步(FSEvents 那时没在
-    /// 听该目录),用户得右键 Reindex 显式触发刷新。设置变更/手动 Reindex
-    /// 都走 forceRescan=true 路径,绕开缓存。
+
+    private var scanTask: Task<Void, Never>?
+    private var scanningWorkspaceID: UUID?
+    private var scanQueue: [QueueEntry] = []
+
+    private struct QueueEntry {
+        let uuid: UUID
+        let forceRescan: Bool
+        let silent: Bool
+    }
+
+    /// 本次 app 会话已 scan 过的 workspace。重启后置空。
     private var activatedWorkspaceIDs: Set<UUID> = []
 
-    init(container: ModelContainer) {
-        self.container = container
+    init(storeManager: WorkspaceStoreManager) {
+        self.storeManager = storeManager
     }
 
     func activate(workspace: Workspace, forceRescan: Bool = false) async {
-        await deactivate()
+        stopWatcher()
 
-        let indexer = FileIndexer(container: container)
-        let needsScan = forceRescan || !activatedWorkspaceIDs.contains(workspace.id)
+        let wsUUID = workspace.id
+
+        // FileActions / FileThumbnail / Inspector 用全局注册表查 file URL
+        // (跨 store 后 FileNode 不再持有 workspace 关系)。
+        if let (folder, _) = try? BookmarkStore.resolve(bookmark: workspace.bookmarkData) {
+            FileURLResolver.shared.register(workspaceID: wsUUID, folderURL: folder)
+        }
+
+        let needsScan = forceRescan || !activatedWorkspaceIDs.contains(wsUUID)
+
         if needsScan {
-            do {
-                try await indexer.scan(workspace: workspace)
-                activatedWorkspaceIDs.insert(workspace.id)
-            } catch {
-                print("Initial scan failed: \(error)")
-                return
-            }
+            // 跨重启复用持久化数据。store 已有数据(fileCount > 0)走 silent
+            // scan —— UI 立刻 ready 显示老数据,后台对账完(增删 FileNode)
+            // 再实时刷。FSEvents watcher 在 app 跑着时实时同步,silent scan
+            // 补 app 没跑期间漏掉的变化。
+            //
+            // 关键前提:view 层已完全 snapshot 化(FileSnapshot,无 @Model
+            // 引用),mainContext 上 FileNode 属性变化不再触发 view rerender
+            // 风暴;sidebar 也改读 ws.fileCount 缓存(scan 末尾才写),scan
+            // 期间不会高频 fetchCount。silent scan 中间不 save,只末尾一次
+            // (FileIndexer 内部已实现),把 SwiftData 通知压到一次。
+            //
+            // 空库(首次添加)或 forceRescan(右键重索引)走 silent=false,
+            // 显示进度页正常 scan。
+            let hasExistingData = workspace.fileCount > 0
+            let silent = hasExistingData && !forceRescan
+            enqueueScan(uuid: wsUUID, forceRescan: forceRescan, silent: silent)
+            ensureScanRunning()
         }
 
-        // workspace.watchEnabled = false 时(网络盘 / 巨大目录的兜底),
-        // 不挂 FSEvents 监听,只在用户手动刷新时再扫一次。
         guard workspace.watchEnabled else { return }
-
-        let (folderURL, _) = (try? BookmarkStore.resolve(bookmark: workspace.bookmarkData)) ?? (URL(fileURLWithPath: "/"), false)
-        let w = FolderWatcher()
-        watcher = w
-        watchTask = Task { [weak self] in
-            for await _ in w.start(url: folderURL) {
-                guard let self else { break }
-                _ = self
-                do {
-                    try await indexer.scan(workspace: workspace)
-                } catch {
-                    print("Re-scan failed: \(error)")
-                }
-            }
-        }
+        startWatcher(for: workspace)
     }
 
-    /// 手动触发一次 rescan(右键 → 立即重索引)。
     func reindex(workspace: Workspace) async {
-        let indexer = FileIndexer(container: container)
-        do {
-            try await indexer.scan(workspace: workspace)
-            activatedWorkspaceIDs.insert(workspace.id)
-        } catch {
-            print("Manual reindex failed: \(error)")
+        enqueueScan(uuid: workspace.id, forceRescan: true, silent: false)
+        ensureScanRunning()
+    }
+
+    /// 删除 workspace —— 三步:mark pending(立即 UI 消失) → cancel scan → 删
+    /// 文件 + 删 catalog 行(毫秒级)。
+    func removeWorkspace(_ workspace: Workspace) async {
+        let wsUUID = workspace.id
+        scanQueue.removeAll { $0.uuid == wsUUID }
+        activatedWorkspaceIDs.remove(wsUUID)
+        FileURLResolver.shared.unregister(workspaceID: wsUUID)
+
+        // 1. 标记 pendingDeletion + save。UI 当帧消失。
+        workspace.isPendingDeletion = true
+        try? storeManager.catalog.mainContext.save()
+
+        // 2. 取消正在跑的 scan、停 watcher
+        if scanningWorkspaceID == wsUUID {
+            scanTask?.cancel()
+            if let scanTask { _ = await scanTask.value }
         }
+        stopWatcher()
+
+        // 3. 直接 rm per-workspace SQLite 文件。不管几万几十万 FileNode,
+        //    毫秒级。
+        storeManager.deleteStore(for: wsUUID)
+
+        // 4. 删 catalog 行(workspace + cascade rules + conditions)。catalog
+        //    是小表,删一行不会卡。
+        let ctx = storeManager.catalog.mainContext
+        ctx.delete(workspace)
+        try? ctx.save()
     }
 
     func deactivate() async {
+        stopWatcher()
+    }
+
+    // MARK: - Private
+
+    private func enqueueScan(uuid: UUID, forceRescan: Bool, silent: Bool) {
+        if scanningWorkspaceID == uuid, !forceRescan { return }
+        if let existingIdx = scanQueue.firstIndex(where: { $0.uuid == uuid }) {
+            if forceRescan {
+                scanQueue[existingIdx] = QueueEntry(
+                    uuid: uuid, forceRescan: true,
+                    silent: scanQueue[existingIdx].silent && silent
+                )
+            }
+            return
+        }
+        scanQueue.append(QueueEntry(uuid: uuid, forceRescan: forceRescan, silent: silent))
+    }
+
+    private func ensureScanRunning() {
+        guard scanTask == nil else { return }
+        guard let entry = scanQueue.first else { return }
+        scanQueue.removeFirst()
+
+        scanningWorkspaceID = entry.uuid
+        let uuid = entry.uuid
+        let silent = entry.silent
+        let manager = storeManager
+
+        scanTask = Task { @MainActor [weak self] in
+            let indexer = FileIndexer(storeManager: manager)
+            do {
+                try await indexer.scan(workspaceID: uuid, silent: silent)
+                self?.activatedWorkspaceIDs.insert(uuid)
+            } catch is CancellationError {
+                // 用户切走 / 删除 → 正常 cancel
+            } catch {
+                print("Scan failed: \(error)")
+            }
+            self?.scanTask = nil
+            self?.scanningWorkspaceID = nil
+            self?.ensureScanRunning()
+        }
+    }
+
+    private func startWatcher(for workspace: Workspace) {
+        let (folderURL, _) = (try? BookmarkStore.resolve(bookmark: workspace.bookmarkData))
+            ?? (URL(fileURLWithPath: "/"), false)
+        let w = FolderWatcher()
+        watcher = w
+        let uuid = workspace.id
+        watchTask = Task { [weak self] in
+            for await _ in w.start(url: folderURL) {
+                guard let self else { break }
+                self.enqueueScan(uuid: uuid, forceRescan: true, silent: true)
+                self.ensureScanRunning()
+            }
+        }
+    }
+
+    private func stopWatcher() {
         watchTask?.cancel()
         watchTask = nil
         watcher?.stop()

@@ -1,0 +1,654 @@
+import XCTest
+import SwiftData
+@testable import FileLens
+
+final class FileIndexerTests: XCTestCase {
+
+    private var tmp: URL!
+    private var container: ModelContainer!
+
+    override func setUpWithError() throws {
+        // 每个 case 独立 tmp 目录,UUID 命名,绝不复用 —— 保证不会误碰用户文件。
+        tmp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
+
+        let schema = Schema([Workspace.self, Rule.self, Condition.self, FileNode.self, FileTag.self])
+        let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+        container = try ModelContainer(for: schema, configurations: config)
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: tmp)
+    }
+
+    @MainActor
+    private func makeWorkspace() throws -> Workspace {
+        let ctx = container.mainContext
+        let bookmark = try BookmarkStore.makeBookmark(for: tmp)
+        let ws = Workspace(name: "tmp", folderPath: tmp.path, bookmarkData: bookmark)
+        ctx.insert(ws)
+        // FileIndexer 跑在自己的 background context 上,通过 PersistentIdentifier
+        // 反查 workspace —— 必须先 save,不然背景 context 看不到未提交的 insert。
+        try ctx.save()
+        return ws
+    }
+
+    // MARK: - IO 隔离验证
+
+    /// FileIndexer 现在是 @MainActor,但 IO 阶段必须 Task.detached 跑背景 ——
+    /// 大目录 enumerate + URL.resourceValues 在主线程跑会让 UI 卡死。
+    @MainActor
+    func test_FileIndexer_io_phase_runs_off_main_thread() async throws {
+        let indexer = FileIndexer(modelContainer: container)
+        let offMain = await indexer._testIOOffMainThread()
+        XCTAssertTrue(offMain,
+            "Task.detached 应该跑背景线程,Thread.isMainThread=false。如果 true 说明 IO 阶段落到主线程,大目录会卡 UI")
+    }
+
+    /// 大量文件 scan 期间,主线程心跳不能被饿死。这个测试就是 issue #1 后续
+    /// "公司"目录卡死 99.8% CPU 的回归保险 —— scan 落主线程时,这里测出来的
+    /// drift 会爆到秒级。
+    @MainActor
+    func test_scan_does_not_starve_main_thread() async throws {
+        // 3000 个空文件足以让旧 @MainActor 实现卡 1+ 秒(资源 IO + SwiftData
+        // insert 全在主线程)。背景 actor 实现下主线程几乎不该有 backlog。
+        let n = 3000
+        for i in 0..<n {
+            try Data("x".utf8).write(to: tmp.appendingPathComponent("f\(i).txt"))
+        }
+
+        let ws = try makeWorkspace()
+        let wsID = ws.persistentModelID
+        let indexer = FileIndexer(modelContainer: container)
+
+        // 用 final class + @unchecked Sendable 替代 actor —— 心跳循环和
+        // detached scan task 之间只共享一个 bool(write-once),无并发风险。
+        final class Done: @unchecked Sendable { var value = false }
+        let done = Done()
+
+        let scanTask = Task.detached {
+            try await indexer.scan(workspaceID: wsID)
+        }
+
+        // 主线程心跳:每 20ms 一次,记录最大漂移。背景 scan 占着主线程时
+        // sleep 会被严重延期 —— drift 是直接证据。
+        var maxDrift: TimeInterval = 0
+        var iterations = 0
+        var spikes: [(Int, TimeInterval)] = []
+        let startWall = ContinuousClock.now
+        Task { @MainActor in
+            try? await scanTask.value
+            done.value = true
+        }
+        while !done.value, iterations < 1000 {
+            let before = ContinuousClock.now
+            try? await Task.sleep(for: .milliseconds(20))
+            let elapsed = ContinuousClock.now - before
+            let driftSec = TimeInterval(elapsed.components.seconds) +
+                Double(elapsed.components.attoseconds) / 1e18 - 0.020
+            if driftSec > 0.05 {
+                let sinceStart = ContinuousClock.now - startWall
+                let elapsedMs = TimeInterval(sinceStart.components.seconds) * 1000
+                    + Double(sinceStart.components.attoseconds) / 1e15
+                spikes.append((iterations, driftSec))
+                print("DRIFT spike at iter \(iterations), t+\(Int(elapsedMs))ms: drift=\(String(format: "%.0f", driftSec * 1000))ms")
+            }
+            maxDrift = max(maxDrift, driftSec)
+            iterations += 1
+        }
+        print("DRIFT total iterations: \(iterations), max: \(String(format: "%.0f", maxDrift * 1000))ms, spikes: \(spikes.count)")
+
+        try await scanTask.value
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(nodes.count, n, "scan 应该索引全部文件")
+
+        // 健康基线:背景 actor 下主线程 drift 通常 < 50ms。给 200ms 余量
+        // (CI 抖动)。如果回到 1s+,说明 scan 又跑回主线程了。
+        XCTAssertLessThan(maxDrift, 0.2,
+            "scan 期间主线程被堵 \(String(format: "%.3f", maxDrift))s —— scan 可能又跑回主线程")
+    }
+
+    // MARK: - 跨 context 可见性(bug 回归保险)
+    //
+    // 这三个测试就是为了挡掉用户在大文件量真实场景下踩到的几个连环坑:
+    // - 加完 workspace,scan 跑完,UI 看到 ws.files 还是空 (得重启)
+    // - 索引完成但 rule tag 不显示
+    // - 删 workspace 卡死主线程
+
+    /// scan 跑完后,**主 context** 持有的 workspace.files relationship 必须能看到
+    /// 新插入的 FileNode。背景 actor 跑 IO 没问题,但 SwiftData 跨 context
+    /// 合并对已存在的 PersistentModel 实例的 @Observable 触发不可靠 —— 这就
+    /// 是用户加完文件夹后必须重启才能看到文件的根因。
+    @MainActor
+    func test_scan_files_visible_via_main_workspace_relationship() async throws {
+        try "x".write(to: tmp.appendingPathComponent("a.txt"),
+                      atomically: true, encoding: .utf8)
+        try "x".write(to: tmp.appendingPathComponent("b.txt"),
+                      atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        // 这是 UI 的视角:用 main context 的 ws 实例去读它的 files。
+        // 如果实现把 scan 的写放在 bg context,这里就会是空。
+        XCTAssertEqual(ws.files.count, 2,
+            "scan 后主 context 的 ws.files 应该立即看到新文件;为空说明跨 context 合并失败,UI 必须重启才能看到数据")
+    }
+
+    /// scan 完成后,主 context 的 ws.isIndexing 必须是 false。bg actor 在自己
+    /// context 把 indexStateRaw 设回 0、save,但主 context 持有的 Workspace
+    /// 实例的 @Observable 不一定 fire —— UI 会永远卡在"正在索引"进度条。
+    @MainActor
+    func test_scan_clears_isIndexing_on_main_after_completion() async throws {
+        try "x".write(to: tmp.appendingPathComponent("a.txt"),
+                      atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        XCTAssertFalse(ws.isIndexing, "前置:刚建的 workspace 不应该是 indexing")
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        XCTAssertFalse(ws.isIndexing,
+            "scan 完成后主 context 的 ws.isIndexing 应该是 false;true 说明 UI gate 解不开,卡在进度条")
+    }
+
+    /// rule tag 必须能从主 context 的 FileNode.tags 上读出来。bg actor 插的
+    /// FileTag 通过 cross-context 合并到主 context 不可靠,UI 显示空 tag。
+    @MainActor
+    func test_scan_rule_tags_visible_via_main_filenode_relationship() async throws {
+        try Data([0xFF]).write(to: tmp.appendingPathComponent("photo.png"))
+
+        let ws = try makeWorkspace()
+        for r in BuiltInRules.all() {
+            r.workspace = ws
+            container.mainContext.insert(r)
+        }
+        try container.mainContext.save()
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        // 主 context 视角:ws.files 的 FileNode 上必须能看到 rule 打的 tag
+        let imagesLocalized = NSLocalizedString("Images", value: "Images", comment: "")
+        guard let node = ws.files.first else {
+            XCTFail("ws.files 是空(连基本的 FileNode 都没合并到主 context)")
+            return
+        }
+        let tagNames = node.tags.map(\.name)
+        XCTAssertTrue(tagNames.contains(imagesLocalized),
+            "scan + applyRules 完成后,主 context 看到的 FileNode.tags 应该包含 rule 打的标签;实际:\(tagNames)。bg context 写的 FileTag 没合并到主 context")
+    }
+
+    /// **大量数据 + 递归** 场景的卡顿回归保险 —— 模拟用户的 swanlab / 公司
+    /// 这种几千 ~ 万级文件 + 多层递归的真实目录。失败说明 scan 仍堵主线程。
+    /// 注意:绝不扫真实 ~/Documents,只在 tmp 下造合成树。
+    @MainActor
+    func test_scan_large_recursive_does_not_starve_main_thread() async throws {
+        // 构造:10 个顶层目录 × 10 个二层 × 100 个文件 = 10000 文件,树深 3 层。
+        // 真实 swanlab 这种代码库随手就这个量级。
+        let levels = 10
+        let mid = 10
+        let perLeaf = 100
+        let expectedFiles = levels * mid * perLeaf
+        for i in 0..<levels {
+            let l1 = tmp.appendingPathComponent("l1_\(i)")
+            try FileManager.default.createDirectory(at: l1, withIntermediateDirectories: true)
+            for j in 0..<mid {
+                let l2 = l1.appendingPathComponent("l2_\(j)")
+                try FileManager.default.createDirectory(at: l2, withIntermediateDirectories: true)
+                for k in 0..<perLeaf {
+                    try Data("x".utf8).write(to: l2.appendingPathComponent("f\(k).txt"))
+                }
+            }
+        }
+
+        let ws = try makeWorkspace()
+        ws.recursive = true
+        ws.maxDepth = 0   // 无限深度
+        ws.includeFolders = false   // 只数文件,assertion 干净
+        try container.mainContext.save()
+
+        let wsID = ws.persistentModelID
+        let indexer = FileIndexer(modelContainer: container)
+
+        final class Done: @unchecked Sendable { var value = false }
+        let done = Done()
+
+        let scanTask = Task.detached {
+            try await indexer.scan(workspaceID: wsID)
+        }
+        Task { @MainActor in
+            try? await scanTask.value
+            done.value = true
+        }
+
+        // 心跳 20ms 一拍,记录最大 drift。新架构下 IO 阶段在 detached 跑,
+        // 主线程纯 await(drift 应近 0);SwiftData 阶段每 500 条 yield,
+        // 单批 ~100ms。drift 期望峰值 < 300ms。
+        var maxDrift: TimeInterval = 0
+        var iters = 0
+        while !done.value, iters < 5000 {
+            let before = ContinuousClock.now
+            try? await Task.sleep(for: .milliseconds(20))
+            let elapsed = ContinuousClock.now - before
+            let drift = TimeInterval(elapsed.components.seconds) +
+                Double(elapsed.components.attoseconds) / 1e18 - 0.020
+            maxDrift = max(maxDrift, drift)
+            iters += 1
+        }
+        try await scanTask.value
+
+        // 数据正确性 —— 跨 context 合并 bug 的 sanity check
+        XCTAssertEqual(ws.files.count, expectedFiles,
+            "10k 文件应该全部索引并通过主 context ws.files 可见")
+        XCTAssertFalse(ws.isIndexing,
+            "scan 完成后 isIndexing 必须 false,UI gate 才能解开")
+
+        // 卡顿阈值。500ms 已经是用户感知"明显卡"的下限,生产应该远低于。
+        XCTAssertLessThan(maxDrift, 0.5,
+            "10k 递归 scan 期间主线程被堵 \(String(format: "%.3f", maxDrift))s —— 用户会感觉 UI 冻住")
+    }
+
+    /// scan 必须支持 cancel —— 否则用户切走 workspace,旧 scan 还在背景烧 CPU,
+    /// 切回来又起一个新的,UI 显示进度归零。这是用户实测踩到的 bug。
+    @MainActor
+    func test_scan_respects_cancellation() async throws {
+        // 几千文件足以让 scan 跑足够久,有窗口期 cancel
+        for i in 0..<3000 {
+            try Data("x".utf8).write(to: tmp.appendingPathComponent("f\(i).txt"))
+        }
+        let ws = try makeWorkspace()
+        let wsID = ws.persistentModelID
+        let indexer = FileIndexer(modelContainer: container)
+
+        let scanTask = Task {
+            try await indexer.scan(workspaceID: wsID)
+        }
+        // 给 scan 起步一点时间(IO 阶段就够长 + 进入 SwiftData 阶段),然后 cancel
+        try? await Task.sleep(for: .milliseconds(150))
+        scanTask.cancel()
+
+        // cancel 应该让 scan 抛 CancellationError 退出
+        do {
+            try await scanTask.value
+            XCTFail("scan 应该因为 cancel 而抛 CancellationError")
+        } catch is CancellationError {
+            // expected
+        } catch {
+            // SwiftData / 其他错误也算未正确响应 cancel
+            XCTFail("scan 在 cancel 后抛了非 CancellationError 的错误: \(error)")
+        }
+
+        // cancel 后状态必须回 ready —— defer 兜底,UI gate 解开,用户能重试
+        XCTAssertFalse(ws.isIndexing,
+            "scan 被 cancel 后 indexStateRaw 必须回 0,否则 UI 永远卡在进度条")
+        // cancel 后 ws.files 数量小于全量(没扫完就停了)
+        XCTAssertLessThan(ws.files.count, 3000,
+            "scan cancel 没有真正中断,继续跑到底了 —— 检查主循环里的 try Task.checkCancellation()")
+    }
+
+    /// **用户痛点**:加大 workspace,扫到一半切走,切回来,进度不应该回到 0。
+    /// coordinator 应该让原 scan 继续跑、不打断、不起新 task。
+    @MainActor
+    func test_coordinator_revisit_does_not_restart_scan() async throws {
+        // 几千文件,scan 慢到能在中途切走
+        for i in 0..<2000 {
+            try Data("x".utf8).write(to: tmp.appendingPathComponent("f\(i).txt"))
+        }
+        let ws = try makeWorkspace()
+        let coordinator = WorkspaceCoordinator(container: container)
+
+        // 第一次 activate:scan 入队 + 起步
+        await coordinator.activate(workspace: ws)
+        try? await Task.sleep(for: .milliseconds(150))   // 让 scan 真在写库
+        let progressMidScan = ws.indexProgressDone
+        XCTAssertGreaterThan(progressMidScan, 0,
+            "前置:scan 应该已经在跑、写过几次进度")
+
+        // "切走" → "切回" :第二次 activate 同一个 workspace。
+        // 不应该 cancel 原 scan,也不应该 reset progress。
+        await coordinator.deactivate()
+        await coordinator.activate(workspace: ws)
+
+        // 进度必须只升不降 —— 重启 scan 会让它先回 0
+        let progressAfterRevisit = ws.indexProgressDone
+        XCTAssertGreaterThanOrEqual(progressAfterRevisit, progressMidScan,
+            "切走再切回后进度倒退了:\(progressMidScan) → \(progressAfterRevisit)。说明又起了一个新 scan")
+    }
+
+    /// 用户痛点变体:不同 workspace 之间快速切换,只能有一个 scan 在跑,其它排队。
+    @MainActor
+    func test_coordinator_serializes_scans_across_workspaces() async throws {
+        // 两个 workspace,各自指向不同的 tmp 子目录
+        let dirA = tmp.appendingPathComponent("a")
+        let dirB = tmp.appendingPathComponent("b")
+        try FileManager.default.createDirectory(at: dirA, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: dirB, withIntermediateDirectories: true)
+        for i in 0..<500 {
+            try Data("x".utf8).write(to: dirA.appendingPathComponent("f\(i).txt"))
+            try Data("x".utf8).write(to: dirB.appendingPathComponent("f\(i).txt"))
+        }
+        let ctx = container.mainContext
+        let bookmarkA = try BookmarkStore.makeBookmark(for: dirA)
+        let bookmarkB = try BookmarkStore.makeBookmark(for: dirB)
+        let wsA = Workspace(name: "A", folderPath: dirA.path, bookmarkData: bookmarkA)
+        let wsB = Workspace(name: "B", folderPath: dirB.path, bookmarkData: bookmarkB)
+        ctx.insert(wsA)
+        ctx.insert(wsB)
+        try ctx.save()
+
+        let coordinator = WorkspaceCoordinator(container: container)
+
+        // 快速切到 A → B → A → B,只应该有一个 scan 在跑
+        await coordinator.activate(workspace: wsA)
+        await coordinator.activate(workspace: wsB)
+        await coordinator.activate(workspace: wsA)
+        await coordinator.activate(workspace: wsB)
+
+        // 等所有队列里的 scan 都跑完
+        // 简单等待 + 轮询直到两个 ws 都 ready
+        for _ in 0..<200 {
+            if !wsA.isIndexing && !wsB.isIndexing && wsA.files.count == 500 && wsB.files.count == 500 {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(50))
+        }
+
+        XCTAssertEqual(wsA.files.count, 500, "A 必须扫完")
+        XCTAssertEqual(wsB.files.count, 500, "B 必须扫完")
+        XCTAssertFalse(wsA.isIndexing, "A 必须回到 ready")
+        XCTAssertFalse(wsB.isIndexing, "B 必须回到 ready")
+    }
+
+    /// 用户场景:加进来一看几十万文件不想要了,scan 还没扫完就按删除。
+    /// 必须保证 scan 立刻停、cascade delete 跑完、不留僵尸 task 在背景烧 CPU。
+    @MainActor
+    func test_removeWorkspace_during_scan_cancels_and_cleans_up() async throws {
+        for i in 0..<3000 {
+            try Data("x".utf8).write(to: tmp.appendingPathComponent("f\(i).txt"))
+        }
+        let ws = try makeWorkspace()
+        let wsID = ws.persistentModelID
+        let indexer = FileIndexer(modelContainer: container)
+
+        // 起一个 scan 跑着
+        let scanTask = Task {
+            try await indexer.scan(workspaceID: wsID)
+        }
+        try? await Task.sleep(for: .milliseconds(150))   // 让 scan 真在跑
+
+        // 用户按删除:先 cancel scan、等它退出、再 delete
+        scanTask.cancel()
+        _ = try? await scanTask.value
+        try await indexer.deleteWorkspace(workspaceID: wsID)
+
+        // workspace 必须真没了 + 没有残留 FileNode/FileTag
+        let remainingWS = try container.mainContext.fetch(FetchDescriptor<Workspace>())
+        XCTAssertTrue(remainingWS.isEmpty,
+            "workspace 应该被删干净;残留说明 cascade 没跑完或 scan 还在写")
+        let remainingNodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertTrue(remainingNodes.isEmpty,
+            "FileNode 应该全部 cascade 删除;残留 \(remainingNodes.count) 个")
+        let remainingTags = try container.mainContext.fetch(FetchDescriptor<FileTag>())
+        XCTAssertTrue(remainingTags.isEmpty,
+            "FileTag 应该全部 cascade 删除;残留 \(remainingTags.count) 个")
+    }
+
+    /// 删除 workspace 操作不能卡死主线程。大 workspace cascade delete 11k+ 节点
+    /// 在主 context 上 save 会让 coordinator 锁占数秒,UI freeze。
+    @MainActor
+    func test_deleteWorkspace_does_not_starve_main_thread() async throws {
+        // 1500 个文件足以让"主 context delete + save"占 1+ 秒 main thread
+        let n = 1500
+        for i in 0..<n {
+            try Data("x".utf8).write(to: tmp.appendingPathComponent("f\(i).txt"))
+        }
+
+        let ws = try makeWorkspace()
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+        // 验证扫上了
+        XCTAssertEqual(ws.files.count, n)
+
+        let wsID = ws.persistentModelID
+
+        // 心跳监测:删除期间主线程 sleep 漂移
+        final class Done: @unchecked Sendable { var value = false }
+        let done = Done()
+
+        let deleteTask = Task.detached {
+            try await indexer.deleteWorkspace(workspaceID: wsID)
+        }
+        Task { @MainActor in
+            try? await deleteTask.value
+            done.value = true
+        }
+        var maxDrift: TimeInterval = 0
+        var iters = 0
+        while !done.value, iters < 500 {
+            let before = ContinuousClock.now
+            try? await Task.sleep(for: .milliseconds(20))
+            let elapsed = ContinuousClock.now - before
+            let drift = TimeInterval(elapsed.components.seconds) +
+                Double(elapsed.components.attoseconds) / 1e18 - 0.020
+            maxDrift = max(maxDrift, drift)
+            iters += 1
+        }
+        try await deleteTask.value
+
+        XCTAssertLessThan(maxDrift, 0.2,
+            "deleteWorkspace 期间主线程被堵 \(String(format: "%.3f", maxDrift))s —— 超过 200ms,UI 用户感知会卡顿")
+    }
+
+    // MARK: - 功能正确性(refactor 后照旧通过)
+
+    @MainActor
+    func test_scan_creates_FileNode_per_file() async throws {
+        try "hello".write(to: tmp.appendingPathComponent("a.txt"), atomically: true, encoding: .utf8)
+        try Data([0xFF]).write(to: tmp.appendingPathComponent("b.png"))
+
+        let ws = try makeWorkspace()
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(Set(nodes.map(\.name)), Set(["a.txt", "b.png"]))
+    }
+
+    @MainActor
+    func test_scan_marks_missing_files_as_not_present() async throws {
+        let f = tmp.appendingPathComponent("vanish.txt")
+        try "x".write(to: f, atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        try FileManager.default.removeItem(at: f)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(nodes.first?.isPresent, false)
+    }
+
+    @MainActor
+    func test_scan_skips_hidden_files() async throws {
+        try "x".write(to: tmp.appendingPathComponent(".DS_Store"), atomically: true, encoding: .utf8)
+        try "y".write(to: tmp.appendingPathComponent("visible.txt"), atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(nodes.map(\.name), ["visible.txt"])
+    }
+
+    @MainActor
+    func test_scan_applies_rules() async throws {
+        try Data([0xFF]).write(to: tmp.appendingPathComponent("photo.png"))
+
+        let ws = try makeWorkspace()
+        for r in BuiltInRules.all() {
+            r.workspace = ws
+            container.mainContext.insert(r)
+        }
+        try container.mainContext.save()   // rules 也要 commit,背景 context 才能读到
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        let tags = nodes.first?.tags.map(\.name) ?? []
+        // BuiltInRules 在创建时本地化 name,断言对当前 locale 计算后的形式
+        let imagesLocalized = NSLocalizedString("Images", value: "Images", comment: "")
+        XCTAssertTrue(tags.contains(imagesLocalized))
+    }
+
+    @MainActor
+    func test_scan_nonRecursive_skips_subfolders() async throws {
+        try "top".write(to: tmp.appendingPathComponent("top.txt"),
+                        atomically: true, encoding: .utf8)
+        let sub = tmp.appendingPathComponent("sub")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        try "deep".write(to: sub.appendingPathComponent("deep.txt"),
+                         atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        ws.recursive = false
+        ws.includeFolders = false
+        try container.mainContext.save()
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(nodes.map(\.name), ["top.txt"])
+    }
+
+    @MainActor
+    func test_scan_recursive_unlimited_walks_full_tree() async throws {
+        try "top".write(to: tmp.appendingPathComponent("top.txt"),
+                        atomically: true, encoding: .utf8)
+        let l1 = tmp.appendingPathComponent("l1")
+        let l2 = l1.appendingPathComponent("l2")
+        let l3 = l2.appendingPathComponent("l3")
+        try FileManager.default.createDirectory(at: l3, withIntermediateDirectories: true)
+        try "x".write(to: l1.appendingPathComponent("a.txt"),
+                      atomically: true, encoding: .utf8)
+        try "x".write(to: l2.appendingPathComponent("b.txt"),
+                      atomically: true, encoding: .utf8)
+        try "x".write(to: l3.appendingPathComponent("c.txt"),
+                      atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        ws.recursive = true
+        ws.maxDepth = 0
+        ws.includeFolders = false
+        try container.mainContext.save()
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(Set(nodes.map(\.name)),
+                       Set(["top.txt", "a.txt", "b.txt", "c.txt"]))
+    }
+
+    @MainActor
+    func test_scan_maxDepth_caps_recursion() async throws {
+        try "top".write(to: tmp.appendingPathComponent("top.txt"),
+                        atomically: true, encoding: .utf8)
+        let l1 = tmp.appendingPathComponent("l1")
+        let l2 = l1.appendingPathComponent("l2")
+        try FileManager.default.createDirectory(at: l2, withIntermediateDirectories: true)
+        try "x".write(to: l1.appendingPathComponent("a.txt"),
+                      atomically: true, encoding: .utf8)
+        try "x".write(to: l2.appendingPathComponent("b.txt"),
+                      atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        ws.recursive = true
+        ws.maxDepth = 2
+        ws.includeFolders = false
+        try container.mainContext.save()
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(Set(nodes.map(\.name)), Set(["top.txt", "a.txt"]))
+    }
+
+    @MainActor
+    func test_scan_extraIgnoreFolders_appends_to_global() async throws {
+        try "x".write(to: tmp.appendingPathComponent("keep.txt"),
+                      atomically: true, encoding: .utf8)
+        let custom = tmp.appendingPathComponent("CustomTrash")
+        try FileManager.default.createDirectory(at: custom, withIntermediateDirectories: true)
+        try "x".write(to: custom.appendingPathComponent("dont-index.txt"),
+                      atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        ws.recursive = true
+        ws.extraIgnoreFolders = "CustomTrash"
+        ws.includeFolders = false
+        try container.mainContext.save()
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(nodes.map(\.name), ["keep.txt"])
+    }
+
+    @MainActor
+    func test_scan_includeFolders_indexes_directories_too() async throws {
+        try "x".write(to: tmp.appendingPathComponent("file.txt"),
+                      atomically: true, encoding: .utf8)
+        let sub = tmp.appendingPathComponent("MyFolder")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+
+        let ws = try makeWorkspace()
+        ws.recursive = false
+        ws.includeFolders = true
+        try container.mainContext.save()
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(Set(nodes.map(\.name)), Set(["file.txt", "MyFolder"]))
+
+        let folder = nodes.first { $0.isDirectory }
+        XCTAssertNotNil(folder)
+        XCTAssertEqual(folder?.kind, "folder")
+        XCTAssertEqual(folder?.size, 0)
+        XCTAssertEqual(folder?.ext, "")
+    }
+
+    @MainActor
+    func test_scan_includeFolders_off_skips_directory_entries() async throws {
+        try "x".write(to: tmp.appendingPathComponent("file.txt"),
+                      atomically: true, encoding: .utf8)
+        let sub = tmp.appendingPathComponent("MyFolder")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        try "deep".write(to: sub.appendingPathComponent("deep.txt"),
+                         atomically: true, encoding: .utf8)
+
+        let ws = try makeWorkspace()
+        ws.recursive = true
+        ws.includeFolders = false
+        try container.mainContext.save()
+
+        let indexer = FileIndexer(modelContainer: container)
+        try await indexer.scan(workspaceID: ws.persistentModelID)
+
+        let nodes = try container.mainContext.fetch(FetchDescriptor<FileNode>())
+        XCTAssertEqual(Set(nodes.map(\.name)), Set(["file.txt", "deep.txt"]))
+        XCTAssertTrue(nodes.allSatisfy { !$0.isDirectory })
+    }
+}

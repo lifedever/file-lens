@@ -1,339 +1,761 @@
 import SwiftUI
+import SwiftData
 import AppKit
+import UniformTypeIdentifiers
 
+/// 文件列表视图(list 模式)。底层 `NSViewRepresentable` 包 `NSTableView`,
+/// 不走 SwiftUI 的 `Table` —— 后者在大数据集下会因为 `usesAutomaticRowHeights`
+/// + 每行 NSHostingView 给 NSWindow 注册 KVO 形成 O(n²) 主线程开销,11k+
+/// 行 selection 切换会卡死秒级。我们关掉 auto row heights、固定 22pt、让
+/// NSTableView 自己 lazy 只 mount visible row,11k 数据集 cell 实例数恒定 ~30。
+///
+/// 数据始终是 `[FileSnapshot]`(sendable struct),不持有 SwiftData @Model
+/// 引用 → cell 渲染不触发 ObservationRegistrar 的 KeyPath 注册 / cancel
+/// 风暴(snapshot 化前的真凶)。点击 / 拖拽 / 右键等操作通过 `resolveNodes`
+/// 反查回 FileNode 调 FileActions —— 仅在用户操作那一刻发生。
 struct FileTableView: View {
     @Bindable var workspace: Workspace
-    let files: [FileNode]
+    let files: [FileSnapshot]
+    /// `[file.id : tag display names]` —— Tags 列用,跟 cell 渲染解耦,
+    /// 上层一次性 fetch 所有 FileTag 后建 map 传进来。
+    let tagsByFileID: [UUID: [String]]
     @Binding var selection: Set<UUID>
+    let resolveNodes: ([FileSnapshot]) -> [FileNode]
     @Environment(\.modelContext) private var modelContext
 
-    @State private var sortOrder: [KeyPathComparator<FileNode>]
+    /// 列布局(顺序 / 宽度 / 显隐 / 排序)。从 workspace.tableColumnCustomizationJSON
+    /// 反序列化(失败回默认),用户交互后写回。
+    @State private var layoutState: FileTableLayoutState
 
-    /// 列顺序 / 显隐自定义。Table 自带的右键 header 菜单 + 拖拽 reorder 全靠它。
-    /// 持久化:JSON encode 后塞到 workspace.tableColumnCustomizationJSON,
-    /// 每个 workspace 独立。
-    @State private var columnCustomization: TableColumnCustomization<FileNode>
-    /// 上一次满足"至少 3 列可见"的合法 customization 快照。当用户在 header
-    /// 菜单里把第 3 列也勾掉时,onChange 会回滚到这个值,UI 上表现就是那一栏
-    /// 勾不掉(也不报错,一致性很 macOS-like)。
-    @State private var lastValidCustomization: TableColumnCustomization<FileNode>
-
-    /// 排好序、按当前 sort 决定要不要分桶的视图。
-    /// - 主排序 = `dateAdded` / `dateModified` → `.grouped`,section 头按对应
-    ///   日期分桶("今天 / 昨天 / 本周")
-    /// - 主排序 = name / size / kind 等非时间字段 → `.flat`,单段平铺
-    ///
-    /// 缓存在 class 容器里,@State 只持指针 —— 每次 SwiftUI 重 init View
-    /// (body recompute)不会触发 computeLayout 重跑;真正变化只在 identityKey
-    /// 变了的时候才重算。老实现把 layout 直接当 @State 存,init 时同步算
-    /// 一次喂 initialValue,但 SwiftUI 重 init 时这次计算会被 @State 已存值
-    /// 覆盖丢弃 —— 纯 wasted work,大列表点击延迟主要来自这里。
-    @State private var layoutCache = LayoutCache()
-
-    /// 一次拖拽手势内只 beginDraggingSession 一次的守门 flag。
-    @State private var dragHandedOff: Bool = false
-
-    /// shift-range 锚点(同 grid)。
-    @State private var selectionAnchor: UUID?
-
-    init(workspace: Workspace, files: [FileNode], selection: Binding<Set<UUID>>) {
+    init(workspace: Workspace,
+         files: [FileSnapshot],
+         tagsByFileID: [UUID: [String]],
+         selection: Binding<Set<UUID>>,
+         resolveNodes: @escaping ([FileSnapshot]) -> [FileNode]) {
         self.workspace = workspace
         self.files = files
+        self.tagsByFileID = tagsByFileID
         _selection = selection
-        let initialSort: [KeyPathComparator<FileNode>] = [
-            KeyPathComparator(\FileNode.dateAdded, order: .reverse)
-        ]
-        _sortOrder = State(initialValue: initialSort)
-        // 从 workspace.tableColumnCustomizationJSON 还原上次 column 顺序 / 显隐。
-        // 每个 workspace 独立 —— 切换 workspace 时 SwiftUI 通过 .id(workspace.id)
-        // 在 ContentView 调用处强制重新 init 这个 view,@State 也跟着重置。
-        let initialCustomization = Self.decodeCustomization(workspace.tableColumnCustomizationJSON)
-        _columnCustomization = State(initialValue: initialCustomization)
-        _lastValidCustomization = State(initialValue: initialCustomization)
+        self.resolveNodes = resolveNodes
+        _layoutState = State(initialValue: FileTableLayoutState.decode(workspace.tableColumnCustomizationJSON))
+    }
+
+    private var rows: [FileTableRow] {
+        let sorted = FileTableSorter.sort(files,
+                                          by: layoutState.sortKey,
+                                          ascending: layoutState.sortAscending)
+        return FileTableRowBuilder.makeRows(sortedFiles: sorted, sortKey: layoutState.sortKey)
     }
 
     var body: some View {
-        Table(
-            of: FileNode.self,
+        NativeFileTable(
+            rows: rows,
+            tagsByFileID: tagsByFileID,
+            layoutState: layoutState,
             selection: $selection,
-            sortOrder: $sortOrder,
-            columnCustomization: $columnCustomization
-        ) {
-            TableColumn("Name", value: \.name) { f in
-                HStack(spacing: 6) {
-                    FileThumbnail(file: f, size: 18)
-                    Text(f.name).lineLimit(1).truncationMode(.middle)
-                }
-                .contentShape(Rectangle())
-                // SwiftUI gesture 在 Table cell 里会跟 NSTableView 抢 mouseDown,
-                // 单击不再触发 NSTableView 自带的选中。所以我们自己挂一个
-                // TapGesture 同步 selection 状态(支持 ⌘ toggle / ⇧ range)。
-                // 然后 DragGesture 处理拖拽,二者通过 .simultaneousGesture 并行。
-                .simultaneousGesture(
-                    TapGesture(count: 2).onEnded { FileActions.open(f) }
-                )
-                .simultaneousGesture(
-                    // 用 minimumDistance: 0 一手抓「点击」和「拖拽」两件事 ——
-                    // 通过 translation 实际距离区分。这样不依赖 SwiftUI 自己
-                    // 在 TapGesture / DragGesture 之间仲裁,「微动后松手」也能
-                    // 干净落到 click 分支,不会卡在「拖不起来又 collapse 不了」
-                    // 的中间态。
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            let dist = hypot(value.translation.width, value.translation.height)
-                            guard dist >= 4, !dragHandedOff else { return }
-                            let urls = filesForDrag(f).compactMap(FileActions.url(for:))
-                            guard !urls.isEmpty else { return }
-                            dragHandedOff = true
-                            DragSession.begin(urls: urls)
-                            // AppKit 接管后 SwiftUI 不再 fire,下个 runloop tick
-                            // 重置 flag。详见原 onChanged 注释。
-                            DispatchQueue.main.async { dragHandedOff = false }
-                        }
-                        .onEnded { value in
-                            let dist = hypot(value.translation.width, value.translation.height)
-                            // 没真拖动(< 4pt)才走点击逻辑,否则不动 selection,
-                            // 让 AppKit drag session 自己收尾。
-                            if dist < 4 { handleClick(f) }
-                            dragHandedOff = false
-                        }
-                )
-            }
-            .customizationID("name")
-            // Name 列不允许隐藏 / 重排,作为锚定列(隐了用户就找不到文件了)。
-            .disabledCustomizationBehavior([.reorder, .visibility])
+            onLayoutChange: { newState in
+                layoutState = newState
+                workspace.tableColumnCustomizationJSON = newState.encode()
+            },
+            onDoubleClick: { snap in
+                FileActions.open(resolveNodes([snap]))
+            },
+            onContextRequested: { snaps in
+                resolveNodes(snaps)
+            },
+            modelContext: modelContext
+        )
+    }
+}
 
-            TableColumn("Size", value: \.size) { f in
-                // 文件夹没有"大小"概念,显示破折号(同 Finder)
-                Text(verbatim: f.isDirectory ? "—" : Self.byteFormatter.string(fromByteCount: f.size))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-            }
-            // .width(min:ideal:) 让用户能拖列分隔符调整宽度;固定 .width(N)
-            // 会让 SwiftUI Table 把列锁死,分隔符不响应拖拽。
-            .width(min: 60, ideal: 80)
-            .customizationID("size")
+// MARK: - Row model + grouping
 
-            TableColumn("Date Added", value: \.dateAdded) { f in
-                Text(verbatim: Self.dateFormatter.string(from: f.dateAdded))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            .width(min: 120, ideal: 160)
-            .customizationID("dateAdded")
+/// 拍平后的表格行。`.dateAdded` / `.dateModified` 排序时按 DateBucket 在
+/// 文件之间插入 `.header`(今天 / 本周 / 长期未动 等),给视觉分组,跟 Finder
+/// 「按日期排列」一致。其他排序维度(name/size/kind)只产生 `.item` —— 跟
+/// 分组无关时不强加 header 噪音。
+enum FileTableRow: Equatable {
+    case header(String)
+    case item(FileSnapshot)
 
-            TableColumn("Date Modified", value: \.dateModified) { f in
-                Text(verbatim: Self.dateFormatter.string(from: f.dateModified))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            }
-            .width(min: 120, ideal: 160)
-            .customizationID("dateModified")
-
-            TableColumn("Tags") { (f: FileNode) in
-                Text(f.tags.map { TagDisplay.localizedName($0.name) }.joined(separator: ", "))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .customizationID("tags")
-
-            TableColumn("Kind", value: \.kind) { (f: FileNode) in
-                Text(KindDisplay.localizedName(f.kind))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            .width(min: 60, ideal: 80)
-            .customizationID("kind")
-        } rows: {
-            // 按 identityKey 命中缓存 → O(1) 返回上次 layout;不命中才跑
-            // computeLayout(O(n) bucket + sort)。inspector toggle、hover 等
-            // 不影响数据的 body recompute 全部走 fast path,只剩 NSTableView
-            // 自己 reload 那点开销。
-            let layout = layoutCache.layout(
-                files: files,
-                sortOrder: sortOrder,
-                identityKey: identityKey
-            )
-            switch layout {
-            case .grouped(let slices):
-                ForEach(slices) { slice in
-                    Section(slice.bucket.localizedTitle) {
-                        ForEach(slice.files) { f in
-                            TableRow(f)
-                        }
-                    }
-                }
-            case .flat(let files):
-                ForEach(files) { f in
-                    TableRow(f)
-                }
-            }
-        }
-        .contextMenu(forSelectionType: FileNode.ID.self) { ids in
-            let targets = filesForContextMenu(ids: ids)
-            FileContextMenu(files: targets, modelContext: modelContext)
-        } primaryAction: { ids in
-            FileActions.open(filesForContextMenu(ids: ids))
-        }
-        // 用户在 header 右键勾选/拖动 reorder 后,把新的 customization 持久化。
-        // 同时强制至少 3 列可见 —— 用户在菜单里把第 3 列也勾掉时,把状态回滚
-        // 到 lastValidCustomization,这次 onChange 还会再 fire 一次 (newValue =
-        // last valid),但那次合法,会安静地 no-op。
-        .onChange(of: columnCustomization) { _, newValue in
-            if Self.visibleColumnCount(newValue) < 3 {
-                columnCustomization = lastValidCustomization
-                return
-            }
-            lastValidCustomization = newValue
-            workspace.tableColumnCustomizationJSON = Self.encodeCustomization(newValue)
-        }
+    var isHeader: Bool {
+        if case .header = self { return true }
+        return false
     }
 
-    /// Name 列锚定永远算 1。其余列查 customization 里的 visibility:
-    /// `.hidden` 不算;`.visible` / `.automatic` 都算可见。
-    private static let optionalColumnIDs = ["size", "dateAdded", "dateModified", "tags", "kind"]
-    private static func visibleColumnCount(_ c: TableColumnCustomization<FileNode>) -> Int {
-        var count = 1   // name 锚定
-        for id in optionalColumnIDs where c[visibility: id] != .hidden {
-            count += 1
+    var item: FileSnapshot? {
+        if case .item(let f) = self { return f }
+        return nil
+    }
+}
+
+private enum FileTableRowBuilder {
+    static func makeRows(sortedFiles: [FileSnapshot], sortKey: FileSortKey) -> [FileTableRow] {
+        let bucketKey: KeyPath<FileSnapshot, Date>?
+        switch sortKey {
+        case .dateAdded:    bucketKey = \.dateAdded
+        case .dateModified: bucketKey = \.dateModified
+        default:            bucketKey = nil
         }
-        return count
-    }
-
-    fileprivate struct GroupedSlice: Identifiable {
-        let bucket: DateBucket
-        let files: [FileNode]
-        var id: Int { bucket.rawValue }
-    }
-
-    /// 表格的两种渲染形态。grouped 时按日期分桶(section 标题 = "今天 / 本周"
-    /// 之类);flat 时单段平铺,跟当前非日期排序对得上。
-    /// fileprivate 是为了让同 file 内的 LayoutCache class 拿得到。
-    fileprivate enum Layout {
-        case grouped([GroupedSlice])
-        case flat([FileNode])
-    }
-
-    /// Cheap stable digest of the inputs that affect grouping/sort.
-    /// Don't compute a hash over all file IDs — that defeats the purpose;
-    /// the parent already feeds us the actual array identity through `files`.
-    private var identityKey: String {
-        let firstID = files.first?.id.uuidString ?? "_"
-        let lastID  = files.last?.id.uuidString ?? "_"
-        let sortKey = sortOrder.map { "\($0.keyPath.hashValue):\($0.order == .forward ? "f" : "r")" }
-            .joined(separator: ",")
-        return "\(files.count)|\(firstID)|\(lastID)|\(sortKey)"
-    }
-
-    /// 决定当前 sort 下的渲染形态。`static` + `fileprivate` 是为了让 LayoutCache
-    /// 能跨类型调到。规则:
-    ///   - 主排序 = `dateAdded` → 按 dateAdded 分桶
-    ///   - 主排序 = `dateModified` → 按 dateModified 分桶
-    ///   - 其他(name / size / kind 等) → 不分桶,平铺
-    /// 这样 section 标题永远跟当前排序的"维度"对齐,不会出现"今天"组里
-    /// 排着 3 周前修改的文件这种困惑。
-    fileprivate static func computeLayout(
-        files: [FileNode],
-        sortOrder: [KeyPathComparator<FileNode>]
-    ) -> Layout {
-        let primary = sortOrder.first?.keyPath
-        let bucketKey: KeyPath<FileNode, Date>?
-        if primary == \FileNode.dateModified {
-            bucketKey = \.dateModified
-        } else if primary == \FileNode.dateAdded {
-            bucketKey = \.dateAdded
-        } else {
-            bucketKey = nil
-        }
-
         guard let bucketKey else {
-            return .flat(files.sorted(using: sortOrder))
+            return sortedFiles.map { .item($0) }
         }
+        var rows: [FileTableRow] = []
+        rows.reserveCapacity(sortedFiles.count + DateBucket.allCases.count)
+        var lastBucket: DateBucket?
+        for f in sortedFiles {
+            let bucket = DateBucket.bucket(for: f[keyPath: bucketKey])
+            if bucket != lastBucket {
+                rows.append(.header(bucket.localizedTitle))
+                lastBucket = bucket
+            }
+            rows.append(.item(f))
+        }
+        return rows
+    }
+}
 
-        var byBucket: [DateBucket: [FileNode]] = [:]
-        for f in files {
-            byBucket[DateBucket.bucket(for: f[keyPath: bucketKey]), default: []].append(f)
+// MARK: - Sort
+
+enum FileSortKey: String, Codable, CaseIterable {
+    case name, size, dateAdded, dateModified, kind
+}
+
+private enum FileTableSorter {
+    static func sort(_ files: [FileSnapshot], by key: FileSortKey, ascending: Bool) -> [FileSnapshot] {
+        let cmp: (FileSnapshot, FileSnapshot) -> Bool
+        switch key {
+        case .name:         cmp = { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        case .size:         cmp = { $0.size < $1.size }
+        case .dateAdded:    cmp = { $0.dateAdded < $1.dateAdded }
+        case .dateModified: cmp = { $0.dateModified < $1.dateModified }
+        case .kind:         cmp = { $0.kind < $1.kind }
         }
-        let slices = DateBucket.allCases.compactMap { b -> GroupedSlice? in
-            guard let arr = byBucket[b], !arr.isEmpty else { return nil }
-            return GroupedSlice(bucket: b, files: arr.sorted(using: sortOrder))
-        }
-        return .grouped(slices)
+        return files.sorted { ascending ? cmp($0, $1) : cmp($1, $0) }
+    }
+}
+
+// MARK: - Layout state (sort + columns)
+
+struct FileTableLayoutState: Codable, Equatable {
+    var sortKey: FileSortKey
+    var sortAscending: Bool
+    /// 用户排序后的列顺序 + visibility + width。包含的 id 必须是
+    /// `FileTableColumns.allColumnIDs` 子集;新版本加列时自动 append 默认值。
+    var columns: [ColumnState]
+
+    struct ColumnState: Codable, Equatable {
+        var id: String
+        var visible: Bool
+        var width: CGFloat
     }
 
-    /// Right-click on an unselected row should target *that* row, even if
-    /// other rows are selected — Finder behavior. Right-click on a selected
-    /// row should target the whole selection.
-    private func filesForContextMenu(ids: Set<FileNode.ID>) -> [FileNode] {
-        files.filter { ids.contains($0.id) }
-    }
-
-    /// 拖拽时实际带走的文件集合(同 grid):被拖项在 selection 中 → 拖整组;
-    /// 不在 → 只拖它一个,不动 selection。
-    private func filesForDrag(_ file: FileNode) -> [FileNode] {
-        if selection.contains(file.id) {
-            return files.filter { selection.contains($0.id) }
+    static let `default` = FileTableLayoutState(
+        sortKey: .dateAdded,
+        sortAscending: false,
+        columns: FileTableColumns.allSpecs.map {
+            ColumnState(id: $0.id, visible: $0.defaultVisible, width: $0.defaultWidth)
         }
-        return [file]
-    }
+    )
 
-    /// 模拟 NSTableView 的单击选中行为(因为 SwiftUI cell 上的 gesture 把
-    /// mouseDown 拦截了)。同 grid 选择规则:
-    ///   - 普通点击:替换为该单项 + 锚点更新
-    ///   - ⌘ 点击:toggle + 锚点更新
-    ///   - ⇧ 点击(有锚点):锚点到当前整段
-    ///   - ⇧ 点击(无锚点):退化为普通点击
-    private func handleClick(_ file: FileNode) {
-        let mods = NSEvent.modifierFlags
-        let cmd = mods.contains(.command)
-        let shift = mods.contains(.shift)
-
-        if shift,
-           let anchor = selectionAnchor,
-           let from = files.firstIndex(where: { $0.id == anchor }),
-           let to = files.firstIndex(where: { $0.id == file.id }) {
-            let lo = min(from, to)
-            let hi = max(from, to)
-            selection = Set(files[lo...hi].map(\.id))
-            return
-        }
-
-        if cmd {
-            if selection.contains(file.id) { selection.remove(file.id) }
-            else { selection.insert(file.id) }
-            selectionAnchor = file.id
-            return
-        }
-
-        // 普通点击:替换为单项(同 Finder)。点击在已选中项也 collapse,
-        // 因为 DragGesture 已经在 onEnded 之前用距离判定区分过 click vs drag,
-        // 这里走到的一定是「点击 + 没拖动」。
-        selection = [file.id]
-        selectionAnchor = file.id
-    }
-
-    /// JSON-encode `TableColumnCustomization` 用于 workspace.tableColumnCustomizationJSON 持久化。
-    /// 失败返回空串,下一次启动用默认布局。
-    private static func encodeCustomization(_ value: TableColumnCustomization<FileNode>) -> String {
-        guard let data = try? JSONEncoder().encode(value),
+    func encode() -> String {
+        guard let data = try? JSONEncoder().encode(self),
               let str = String(data: data, encoding: .utf8) else { return "" }
         return str
     }
 
-    /// 反向 decode;空串 / 旧数据损坏时给一个新的默认 customization。
-    private static func decodeCustomization(_ raw: String) -> TableColumnCustomization<FileNode> {
+    static func decode(_ raw: String) -> FileTableLayoutState {
         guard !raw.isEmpty,
               let data = raw.data(using: .utf8),
-              let decoded = try? JSONDecoder().decode(TableColumnCustomization<FileNode>.self, from: data)
-        else { return TableColumnCustomization<FileNode>() }
-        return decoded
+              let decoded = try? JSONDecoder().decode(FileTableLayoutState.self, from: data)
+        else { return .default }
+        // 跟当前已知列对齐:删掉已不存在的列 id,补上 decoded 里没有的新列
+        // (新版本加列向前兼容)。
+        let knownIDs = Set(FileTableColumns.allColumnIDs)
+        var aligned = decoded.columns.filter { knownIDs.contains($0.id) }
+        let presentIDs = Set(aligned.map(\.id))
+        for spec in FileTableColumns.allSpecs where !presentIDs.contains(spec.id) {
+            aligned.append(.init(id: spec.id, visible: spec.defaultVisible, width: spec.defaultWidth))
+        }
+        return FileTableLayoutState(sortKey: decoded.sortKey,
+                                    sortAscending: decoded.sortAscending,
+                                    columns: aligned)
+    }
+}
+
+// MARK: - Column specs
+
+enum FileTableColumns {
+    struct Spec {
+        let id: String
+        let titleKey: String
+        let titleFallback: String
+        let sortKey: FileSortKey?      // nil = 不可排序(Tags)
+        let defaultWidth: CGFloat
+        let minWidth: CGFloat
+        let maxWidth: CGFloat
+        let defaultVisible: Bool
+        let lockedVisible: Bool        // name 列不能隐藏
     }
 
-    /// Per-cell formatters as `static let` —— 之前是 computed property,
-    /// 每个 row 渲染都 new 一个 ByteCountFormatter(它有 NumberFormatter +
-    /// locale 解析的内部成本)。300+ 行 × inspector 动画多帧 = 肉眼卡。
+    static let allSpecs: [Spec] = [
+        .init(id: "name",         titleKey: "Name",          titleFallback: "Name",
+              sortKey: .name,         defaultWidth: 320, minWidth: 160, maxWidth: 800,
+              defaultVisible: true,  lockedVisible: true),
+        .init(id: "size",         titleKey: "Size",          titleFallback: "Size",
+              sortKey: .size,         defaultWidth: 80,  minWidth: 60,  maxWidth: 160,
+              defaultVisible: true,  lockedVisible: false),
+        .init(id: "dateAdded",    titleKey: "Date Added",    titleFallback: "Date Added",
+              sortKey: .dateAdded,    defaultWidth: 160, minWidth: 120, maxWidth: 220,
+              defaultVisible: true,  lockedVisible: false),
+        .init(id: "dateModified", titleKey: "Date Modified", titleFallback: "Date Modified",
+              sortKey: .dateModified, defaultWidth: 160, minWidth: 120, maxWidth: 220,
+              defaultVisible: false, lockedVisible: false),
+        .init(id: "tags",         titleKey: "Tags",          titleFallback: "Tags",
+              sortKey: nil,           defaultWidth: 200, minWidth: 80,  maxWidth: 400,
+              defaultVisible: true,  lockedVisible: false),
+        .init(id: "kind",         titleKey: "Kind",          titleFallback: "Kind",
+              sortKey: .kind,         defaultWidth: 80,  minWidth: 60,  maxWidth: 160,
+              defaultVisible: false, lockedVisible: false),
+    ]
+
+    static let allColumnIDs: [String] = allSpecs.map(\.id)
+
+    static func spec(id: String) -> Spec? { allSpecs.first { $0.id == id } }
+}
+
+// MARK: - Native table
+
+private struct NativeFileTable: NSViewRepresentable {
+    let rows: [FileTableRow]
+    let tagsByFileID: [UUID: [String]]
+    let layoutState: FileTableLayoutState
+    @Binding var selection: Set<UUID>
+    let onLayoutChange: (FileTableLayoutState) -> Void
+    let onDoubleClick: (FileSnapshot) -> Void
+    let onContextRequested: ([FileSnapshot]) -> [FileNode]
+    let modelContext: ModelContext
+
+    static let rowHeight: CGFloat = 22
+    /// Date bucket 分组标题行的高度,对齐 FileGridView sectionHeader 的视觉:
+    /// vertical padding 6 + 13pt 字 ≈ 28pt。
+    static let headerRowHeight: CGFloat = 28
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+        scrollView.autohidesScrollers = true
+        scrollView.borderType = .noBorder
+
+        let tableView = FileNSTableView()
+        tableView.delegate = context.coordinator
+        tableView.dataSource = context.coordinator
+        tableView.allowsMultipleSelection = true
+        tableView.allowsEmptySelection = true
+        tableView.allowsColumnResizing = true
+        tableView.allowsColumnReordering = true
+        let header = FileTableHeaderView()
+        header.onMenuRequested = { [weak coordinator = context.coordinator] in
+            coordinator?.makeColumnsMenu()
+        }
+        tableView.headerView = header
+        tableView.usesAlternatingRowBackgroundColors = true
+        tableView.style = .inset
+        tableView.gridStyleMask = []
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
+        // 关键:关掉 automatic row heights —— SwiftUI Table 这个开关默认开,
+        // 强制 NSTableView 在 endUpdates 阶段 measure 所有 inserted row 的高度,
+        // 每次 measure 创建临时 NSHostingView,11k 行 = N² KVO 注册风暴。
+        tableView.usesAutomaticRowHeights = false
+        tableView.rowHeight = Self.rowHeight
+        // Group row(date bucket section header)滚动时粘顶,跟 Grid 视图
+        // 的 LazyVGrid pinnedViews 一致。配合 isGroupRow delegate 启用。
+        tableView.floatsGroupRows = true
+        tableView.target = context.coordinator
+        tableView.doubleAction = #selector(Coordinator.handleDoubleClick(_:))
+        tableView.menu = NSMenu()
+        tableView.registerForDraggedTypes([.fileURL])
+        tableView.setDraggingSourceOperationMask([.copy, .link, .generic], forLocal: false)
+
+        // 应用初始 layout(列顺序 / visible / width / sort)。
+        context.coordinator.installColumns(on: tableView)
+        scrollView.documentView = tableView
+        context.coordinator.install(scrollView: scrollView, tableView: tableView)
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.applyLayoutIfNeeded()
+        context.coordinator.applyRows(rows)
+        context.coordinator.applySelection(selection)
+    }
+
+    static func dismantleNSView(_ nsView: NSScrollView, coordinator: Coordinator) {
+        coordinator.teardown()
+    }
+
+    // MARK: Coordinator
+
+    @MainActor
+    final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
+        var parent: NativeFileTable
+        private weak var scrollView: NSScrollView?
+        private weak var tableView: FileNSTableView?
+        private var lastRows: [FileTableRow] = []
+        /// 仅 `.item` 行的 file id → row index 映射,selection 同步用。
+        private var itemRowIndexByID: [UUID: Int] = [:]
+        private var lastAppliedLayout: FileTableLayoutState?
+        /// 阻止 column move / resize 通知触发的 onLayoutChange 反向重建 table —— 我们
+        /// 自己应用 layout 时把这个 flag 拉高,期间忽略 didMoveColumn / didResizeColumn。
+        private var applyingLayout = false
+
+        init(parent: NativeFileTable) {
+            self.parent = parent
+        }
+
+        fileprivate func install(scrollView: NSScrollView, tableView: FileNSTableView) {
+            self.scrollView = scrollView
+            self.tableView = tableView
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(handleColumnDidMove(_:)),
+                name: NSTableView.columnDidMoveNotification, object: tableView
+            )
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(handleColumnDidResize(_:)),
+                name: NSTableView.columnDidResizeNotification, object: tableView
+            )
+        }
+
+        func teardown() {
+            NotificationCenter.default.removeObserver(self)
+            tableView?.delegate = nil
+            tableView?.dataSource = nil
+        }
+
+        // MARK: 初始化列
+
+        fileprivate func installColumns(on tableView: NSTableView) {
+            applyingLayout = true
+            defer { applyingLayout = false }
+            // 按 layoutState.columns 顺序加 column;hidden 列也加(NSTableView 通过
+            // isHidden 控制可见性,column 顺序仍要保留以便用户从 header 菜单切回)。
+            for state in parent.layoutState.columns {
+                guard let spec = FileTableColumns.spec(id: state.id) else { continue }
+                let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(spec.id))
+                column.title = NSLocalizedString(spec.titleKey, value: spec.titleFallback, comment: "")
+                column.width = state.width
+                column.minWidth = spec.minWidth
+                column.maxWidth = spec.maxWidth
+                column.resizingMask = .userResizingMask
+                column.isHidden = !state.visible
+                if let sortKey = spec.sortKey {
+                    // sortDescriptorPrototype.key 用 sortKey rawValue,delegate
+                    // 拿到时反查回 FileSortKey。
+                    column.sortDescriptorPrototype = NSSortDescriptor(
+                        key: sortKey.rawValue, ascending: true
+                    )
+                }
+                tableView.addTableColumn(column)
+            }
+            // 应用 sort indicator
+            applySortIndicator(on: tableView)
+            lastAppliedLayout = parent.layoutState
+        }
+
+        private func applySortIndicator(on tableView: NSTableView) {
+            tableView.sortDescriptors = [
+                NSSortDescriptor(key: parent.layoutState.sortKey.rawValue,
+                                 ascending: parent.layoutState.sortAscending)
+            ]
+        }
+
+        // MARK: Layout 同步(外部修改 layoutState 时反映到 NSTableView)
+
+        fileprivate func applyLayoutIfNeeded() {
+            guard let tableView else { return }
+            guard lastAppliedLayout != parent.layoutState else { return }
+            let prev = lastAppliedLayout
+            lastAppliedLayout = parent.layoutState
+
+            applyingLayout = true
+            defer { applyingLayout = false }
+
+            // 仅 visibility 或 width 变化时,locate column by id 并 patch。
+            // 顺序变化(用户拖)和 sort 变化在自己的事件回调里已经写到 layout 了,
+            // 这里只补外部状态注入(比如其他视图同步,通常不会发生)。
+            for state in parent.layoutState.columns {
+                guard let column = tableView.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier(state.id))
+                else { continue }
+                if column.isHidden != !state.visible { column.isHidden = !state.visible }
+                if abs(column.width - state.width) > 0.5 { column.width = state.width }
+            }
+
+            if prev?.sortKey != parent.layoutState.sortKey
+                || prev?.sortAscending != parent.layoutState.sortAscending {
+                applySortIndicator(on: tableView)
+            }
+        }
+
+        // MARK: 数据应用
+
+        func applyRows(_ rows: [FileTableRow]) {
+            // 只比较 row 序列(item id 顺序 + header 标题 + header 位置)。
+            // header 标题相同 + items 相同 → 不 reload。
+            guard rows != lastRows else { return }
+            lastRows = rows
+            rebuildItemIndex()
+            tableView?.reloadData()
+        }
+
+        private func rebuildItemIndex() {
+            var map: [UUID: Int] = [:]
+            map.reserveCapacity(lastRows.count)
+            for (idx, row) in lastRows.enumerated() {
+                if case .item(let snap) = row { map[snap.id] = idx }
+            }
+            itemRowIndexByID = map
+        }
+
+        func applySelection(_ selectionIDs: Set<UUID>) {
+            guard let tableView else { return }
+            let rows = IndexSet(selectionIDs.compactMap { itemRowIndexByID[$0] })
+            guard tableView.selectedRowIndexes != rows else { return }
+            tableView.selectRowIndexes(rows, byExtendingSelection: false)
+        }
+
+        // MARK: NSTableViewDataSource
+
+        func numberOfRows(in tableView: NSTableView) -> Int {
+            lastRows.count
+        }
+
+        // MARK: NSTableViewDelegate (cell)
+
+        func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+            guard row < lastRows.count else { return nil }
+
+            // Group row 路径:NSTableView 在 isGroupRow == true 时给 viewFor
+            // 传 column == nil,要求一个跨整行的 view(用作 sticky pinned header)。
+            if tableColumn == nil {
+                guard case .header(let title) = lastRows[row] else { return nil }
+                let identifier = NSUserInterfaceItemIdentifier("FileLensGroupRow")
+                let view: FileTableGroupRowView
+                if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? FileTableGroupRowView {
+                    view = reused
+                } else {
+                    view = FileTableGroupRowView()
+                    view.identifier = identifier
+                }
+                view.populate(title: title)
+                return view
+            }
+
+            guard let column = tableColumn else { return nil }
+            let columnID = column.identifier.rawValue
+
+            switch lastRows[row] {
+            case .header:
+                // 普通列在 group row 上不渲染 cell —— group row 路径(column == nil)
+                // 已经接管整行渲染。返回空 view 避免 NSTableView 拿到 nil 报错。
+                return NSView(frame: .zero)
+
+            case .item(let snap):
+                let identifier = NSUserInterfaceItemIdentifier("FileLensCell.\(columnID)")
+                let cell: FileTableCell
+                if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? FileTableCell {
+                    cell = reused
+                } else {
+                    cell = FileTableCell()
+                    cell.identifier = identifier
+                }
+                cell.populate(
+                    columnID: columnID,
+                    snapshot: snap,
+                    tagNames: parent.tagsByFileID[snap.id] ?? [],
+                    contextProvider: { [weak self] in
+                        guard let self else { return [] }
+                        let selection = self.parent.selection
+                        let snaps: [FileSnapshot]
+                        if selection.contains(snap.id) {
+                            snaps = self.lastRows.compactMap { $0.item }.filter { selection.contains($0.id) }
+                        } else {
+                            snaps = [snap]
+                        }
+                        return self.parent.onContextRequested(snaps)
+                    },
+                    modelContext: parent.modelContext
+                )
+                return cell
+            }
+        }
+
+        func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+            guard row < lastRows.count else { return NativeFileTable.rowHeight }
+            return lastRows[row].isHeader ? NativeFileTable.headerRowHeight : NativeFileTable.rowHeight
+        }
+
+        func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+            guard row < lastRows.count else { return false }
+            return !lastRows[row].isHeader
+        }
+
+        /// 标记 date bucket header 为 group row,配合 `floatsGroupRows = true`
+        /// 实现滚动 sticky pinned。NSTableView 会在 viewFor 时给 column = nil,
+        /// 从我们这边拿一个跨整行的 NSView 作为 floating header。
+        func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
+            guard row < lastRows.count else { return false }
+            return lastRows[row].isHeader
+        }
+
+        /// inset style 下 NSTableRowView 默认给 group row 画底边 separator,
+        /// 我们 cell 用 NSVisualEffectView 占满整行盖住中段,但 row 左右两端的
+        /// inset margin 区域 separator 仍然露出来(用户看到的那两小段下划线)。
+        /// 给 group row 用自定义 NSTableRowView 把 drawSeparator 整段砍掉。
+        func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+            guard row < lastRows.count, lastRows[row].isHeader else { return nil }
+            let identifier = NSUserInterfaceItemIdentifier("FileLensGroupRowContainer")
+            if let reused = tableView.makeView(withIdentifier: identifier, owner: self) as? FileTableGroupRow {
+                return reused
+            }
+            let view = FileTableGroupRow()
+            view.identifier = identifier
+            return view
+        }
+
+        // MARK: Selection
+
+        func tableViewSelectionDidChange(_ notification: Notification) {
+            guard let tableView else { return }
+            let selectedRows = tableView.selectedRowIndexes
+            let newSelection = Set(selectedRows.compactMap { idx -> UUID? in
+                guard idx < lastRows.count else { return nil }
+                if case .item(let snap) = lastRows[idx] { return snap.id }
+                return nil
+            })
+            if newSelection != parent.selection {
+                parent.selection = newSelection
+            }
+        }
+
+        @objc func handleDoubleClick(_ sender: Any?) {
+            guard let tableView,
+                  tableView.clickedRow >= 0,
+                  tableView.clickedRow < lastRows.count,
+                  case .item(let snap) = lastRows[tableView.clickedRow]
+            else { return }
+            parent.onDoubleClick(snap)
+        }
+
+        // MARK: Sort
+
+        func tableView(_ tableView: NSTableView, sortDescriptorsDidChange oldDescriptors: [NSSortDescriptor]) {
+            guard let sd = tableView.sortDescriptors.first,
+                  let raw = sd.key,
+                  let key = FileSortKey(rawValue: raw)
+            else { return }
+            var state = parent.layoutState
+            state.sortKey = key
+            state.sortAscending = sd.ascending
+            persistLayout(state)
+        }
+
+        // MARK: Column reorder / resize
+
+        @objc private func handleColumnDidMove(_ note: Notification) {
+            guard !applyingLayout, let tableView else { return }
+            // tableView.tableColumns 顺序已经反映了用户拖拽后的状态。
+            let order = tableView.tableColumns.map(\.identifier.rawValue)
+            var byID = Dictionary(uniqueKeysWithValues: parent.layoutState.columns.map { ($0.id, $0) })
+            var rebuilt: [FileTableLayoutState.ColumnState] = []
+            for id in order {
+                if let s = byID.removeValue(forKey: id) { rebuilt.append(s) }
+            }
+            // 把已知但当前 NSTableView 没列出的(理论不会有)塞回末尾,防丢失。
+            rebuilt.append(contentsOf: byID.values)
+            var state = parent.layoutState
+            state.columns = rebuilt
+            persistLayout(state)
+        }
+
+        @objc private func handleColumnDidResize(_ note: Notification) {
+            guard !applyingLayout, let tableView else { return }
+            var state = parent.layoutState
+            for (idx, colState) in state.columns.enumerated() {
+                guard let column = tableView.tableColumn(withIdentifier: NSUserInterfaceItemIdentifier(colState.id))
+                else { continue }
+                state.columns[idx].width = column.width
+            }
+            persistLayout(state)
+        }
+
+        // MARK: Column visibility (右键 header 菜单)
+
+        func tableView(_ tableView: NSTableView, didClick tableColumn: NSTableColumn) {
+            // 单击列头排序由 sortDescriptorsDidChange 处理,这里 no-op。
+        }
+
+        fileprivate func makeColumnsMenu() -> NSMenu {
+            let menu = NSMenu()
+            for spec in FileTableColumns.allSpecs {
+                let item = NSMenuItem(
+                    title: NSLocalizedString(spec.titleKey, value: spec.titleFallback, comment: ""),
+                    action: #selector(toggleColumn(_:)),
+                    keyEquivalent: ""
+                )
+                item.target = self
+                item.representedObject = spec.id
+                let isVisible = parent.layoutState.columns.first { $0.id == spec.id }?.visible ?? spec.defaultVisible
+                item.state = isVisible ? .on : .off
+                if spec.lockedVisible { item.isEnabled = false }
+                menu.addItem(item)
+            }
+            return menu
+        }
+
+        @objc private func toggleColumn(_ sender: NSMenuItem) {
+            guard let id = sender.representedObject as? String else { return }
+            var state = parent.layoutState
+            guard let idx = state.columns.firstIndex(where: { $0.id == id }) else { return }
+            state.columns[idx].visible.toggle()
+            persistLayout(state)
+        }
+
+        private func persistLayout(_ state: FileTableLayoutState) {
+            parent.onLayoutChange(state)
+        }
+
+        // MARK: 拖拽 source
+
+        func tableView(_ tableView: NSTableView, pasteboardWriterForRow row: Int) -> (any NSPasteboardWriting)? {
+            guard row < lastRows.count, case .item(let snap) = lastRows[row] else { return nil }
+            return FileURLResolver.shared.url(for: snap) as NSURL?
+        }
+    }
+}
+
+// MARK: - NSTableView 子类
+
+/// 扩展点:右键命中行时单选该行(Finder 一致行为)。Header 区域的右键菜单
+/// 由 `FileTableHeaderView` 提供。
+private final class FileNSTableView: NSTableView {
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let point = self.convert(event.locationInWindow, from: nil)
+        let row = self.row(at: point)
+        guard row >= 0 else { return super.menu(for: event) }
+        if !self.selectedRowIndexes.contains(row) {
+            self.selectRowIndexes(IndexSet(integer: row), byExtendingSelection: false)
+        }
+        return super.menu(for: event)
+    }
+}
+
+/// Table header 右键 → 列显隐菜单。每次弹出由 closure 重建,根据当前
+/// layoutState 动态生成 + 勾选。
+private final class FileTableHeaderView: NSTableHeaderView {
+    var onMenuRequested: (() -> NSMenu?)?
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        onMenuRequested?() ?? super.menu(for: event)
+    }
+}
+
+// MARK: - Cell
+
+/// NSTableCellView 子类,根据 columnID 渲染不同字段。
+/// NSHostingView 渲染 SwiftUI content —— NSTableView lazy 复用,11k 行也只
+/// 有可见 ~30 个 NSHostingView 实例。
+private final class FileTableCell: NSTableCellView {
+    private var hostingView: NSHostingView<AnyView>?
+
+    func populate(columnID: String, snapshot: FileSnapshot,
+                  tagNames: [String],
+                  contextProvider: @escaping () -> [FileNode],
+                  modelContext: ModelContext) {
+        let content = Self.makeContent(
+            columnID: columnID, snapshot: snapshot, tagNames: tagNames,
+            contextProvider: contextProvider, modelContext: modelContext
+        )
+        if let host = hostingView {
+            host.rootView = content
+        } else {
+            let host = NSHostingView(rootView: content)
+            host.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(host)
+            NSLayoutConstraint.activate([
+                host.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 6),
+                host.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -6),
+                host.topAnchor.constraint(equalTo: topAnchor),
+                host.bottomAnchor.constraint(equalTo: bottomAnchor),
+            ])
+            hostingView = host
+        }
+    }
+
+    private static func makeContent(columnID: String, snapshot: FileSnapshot,
+                                    tagNames: [String],
+                                    contextProvider: @escaping () -> [FileNode],
+                                    modelContext: ModelContext) -> AnyView {
+        switch columnID {
+        case "name":
+            return AnyView(
+                HStack(spacing: 6) {
+                    FileThumbnail(file: snapshot, size: 16)
+                    Text(snapshot.name).lineLimit(1).truncationMode(.middle)
+                    Spacer(minLength: 0)
+                }
+                .contextMenu {
+                    FileContextMenu(files: contextProvider(), modelContext: modelContext)
+                }
+            )
+        case "size":
+            return AnyView(
+                Text(snapshot.isDirectory ? "—" : Self.byteFormatter.string(fromByteCount: snapshot.size))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        case "dateAdded":
+            return AnyView(
+                Text(Self.dateFormatter.string(from: snapshot.dateAdded))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        case "dateModified":
+            return AnyView(
+                Text(Self.dateFormatter.string(from: snapshot.dateModified))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        case "tags":
+            let display = tagNames.map(TagDisplay.localizedName).joined(separator: ", ")
+            return AnyView(
+                Text(display)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        case "kind":
+            return AnyView(
+                Text(KindDisplay.localizedName(snapshot.kind))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            )
+        default:
+            return AnyView(EmptyView())
+        }
+    }
+
     private static let byteFormatter: ByteCountFormatter = {
         let f = ByteCountFormatter(); f.countStyle = .file; return f
     }()
@@ -345,19 +767,62 @@ struct FileTableView: View {
     }()
 }
 
-/// FileTableView 的 layout 缓存。class 引用类型,@State 只持指针 —— 改内
-/// 部字段不触发 SwiftUI rerender,纯 memo。identityKey 命中时 O(1) 返回缓
-/// 存,不命中才跑 computeLayout。
-private final class LayoutCache {
-    private var lastKey: String = ""
-    private var lastLayout: FileTableView.Layout = .flat([])
+/// 自定义 NSTableRowView for group rows —— 关掉默认 separator(底边横线),
+/// 也让背景透明让 NSVisualEffectView 控制视觉。
+private final class FileTableGroupRow: NSTableRowView {
+    override func drawSeparator(in dirtyRect: NSRect) {
+        // intentionally empty:跟 Grid 视图 sectionHeader 一致,无底边线。
+    }
+    override func drawBackground(in dirtyRect: NSRect) {
+        // 让 cell 内的 NSVisualEffectView 画背景,row level 不画。
+    }
+}
 
-    func layout(files: [FileNode],
-                sortOrder: [KeyPathComparator<FileNode>],
-                identityKey: String) -> FileTableView.Layout {
-        if identityKey == lastKey { return lastLayout }
-        lastLayout = FileTableView.computeLayout(files: files, sortOrder: sortOrder)
-        lastKey = identityKey
-        return lastLayout
+/// Date bucket group row 的整行 view —— NSTableView 在 isGroupRow == true 时
+/// 给 viewFor 传 column = nil,要求一个跨整行的 view 作为 group header / sticky
+/// floating pin。
+///
+/// 样式跟 FileGridView 的 sectionHeader 对齐:
+///   - system size 13 weight semibold + .secondaryLabel(同 SwiftUI .secondary)
+///   - leading 12pt(对齐 cell content 起点)
+///   - 视觉 vibrancy `.headerView` material —— sticky 时半透明,跟系统 List
+///     的 group header 风格一致(Mail / Notes / Reminders 都是这个 material)
+private final class FileTableGroupRowView: NSView {
+    private let label: NSTextField
+    private let visualEffect: NSVisualEffectView
+
+    override init(frame frameRect: NSRect) {
+        let visual = NSVisualEffectView()
+        visual.material = .headerView
+        visual.blendingMode = .withinWindow
+        visual.state = .followsWindowActiveState
+        visual.translatesAutoresizingMaskIntoConstraints = false
+        self.visualEffect = visual
+
+        let tf = NSTextField(labelWithString: "")
+        tf.font = .systemFont(ofSize: 13, weight: .semibold)
+        tf.textColor = .secondaryLabelColor
+        tf.translatesAutoresizingMaskIntoConstraints = false
+        self.label = tf
+
+        super.init(frame: frameRect)
+        addSubview(visual)
+        addSubview(tf)
+        NSLayoutConstraint.activate([
+            visual.leadingAnchor.constraint(equalTo: leadingAnchor),
+            visual.trailingAnchor.constraint(equalTo: trailingAnchor),
+            visual.topAnchor.constraint(equalTo: topAnchor),
+            visual.bottomAnchor.constraint(equalTo: bottomAnchor),
+            tf.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            tf.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+            tf.centerYAnchor.constraint(equalTo: centerYAnchor),
+        ])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError() }
+
+    func populate(title: String) {
+        label.stringValue = title
     }
 }

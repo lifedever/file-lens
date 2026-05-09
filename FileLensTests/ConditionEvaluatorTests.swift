@@ -5,7 +5,8 @@ final class ConditionEvaluatorTests: XCTestCase {
 
     private func makeFile(name: String = "test.dmg", ext: String = "dmg", size: Int64 = 1_000_000,
                          dateAdded: Date = .now, kind: String = "other") -> FileNode {
-        FileNode(relativePath: name, name: name, ext: ext, size: size,
+        FileNode(workspaceID: UUID(),
+                 relativePath: name, name: name, ext: ext, size: size,
                  dateAdded: dateAdded, dateModified: dateAdded, kind: kind)
     }
 

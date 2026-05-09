@@ -46,5 +46,15 @@ enum FileIconCache {
         return icon(ext: file.ext, fallbackPath: FileActions.url(for: file)?.path)
     }
 
+    static func icon(for snap: FileSnapshot) -> NSImage {
+        if snap.isDirectory {
+            if let cached = folderIcon { return cached }
+            let icon = NSWorkspace.shared.icon(for: .folder)
+            folderIcon = icon
+            return icon
+        }
+        return icon(ext: snap.ext, fallbackPath: FileURLResolver.shared.url(for: snap)?.path)
+    }
+
     private static var folderIcon: NSImage?
 }

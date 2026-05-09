@@ -5,7 +5,8 @@ final class RuleEngineTests: XCTestCase {
 
     private func makeFile(name: String, ext: String, size: Int64 = 1_000_000,
                          kind: String = "other") -> FileNode {
-        FileNode(relativePath: name, name: name, ext: ext, size: size,
+        FileNode(workspaceID: UUID(),
+                 relativePath: name, name: name, ext: ext, size: size,
                  dateAdded: .now, dateModified: .now, kind: kind)
     }
 

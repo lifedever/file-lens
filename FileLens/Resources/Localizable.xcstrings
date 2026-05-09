@@ -1815,6 +1815,20 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在重新索引文件夹…" } }
       }
     },
+    "indexing.title" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Indexing folder…" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "正在索引文件夹…" } }
+      }
+    },
+    "indexing.subtitle" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Files will appear once indexing completes." } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "索引完成后将显示文件列表。" } }
+      }
+    },
     "workspace.reindex.toast.done" : {
       "extractionState" : "manual",
       "localizations" : {

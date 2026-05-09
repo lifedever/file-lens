@@ -10,12 +10,12 @@ import AppKit
 /// `ThumbnailService.smallSize`(128pt @2x)。Table 18pt / Grid 48~160pt
 /// 都共用同一份缓存条目,避免 N 档重复生成。
 struct FileThumbnail: View {
-    let file: FileNode
+    let file: FileSnapshot
     let size: CGFloat
 
     @State private var image: NSImage
 
-    init(file: FileNode, size: CGFloat) {
+    init(file: FileSnapshot, size: CGFloat) {
         self.file = file
         self.size = size
         self._image = State(initialValue: FileIconCache.icon(for: file))
@@ -35,20 +35,17 @@ struct FileThumbnail: View {
         // 不支持的类型(audio / archive / other)直接保留扩展名图标
         guard PreviewHost.kind(for: file) != .unsupported,
               !file.isDirectory,
-              let url = FileActions.url(for: file)
+              let url = FileURLResolver.shared.url(for: file)
         else { return }
 
         let target = ThumbnailService.smallSize
 
-        // 1. 同步查盘:命中就立刻换图(cachedThumbnail 是 nonisolated)
         if let cached = ThumbnailService.shared.cachedThumbnail(
             for: url, size: target) {
             image = cached
             return
         }
 
-        // 2. 异步生成。完成后再确认仍是当前 file —— 滚动快时 view 可能已被
-        // 复用到别的 file,Task 会被 .task(id:) 自动 cancel,但保险起见再判一次
         if let generated = await ThumbnailService.shared.thumbnail(
             for: url, size: target),
            !Task.isCancelled {
