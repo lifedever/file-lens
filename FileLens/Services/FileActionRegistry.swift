@@ -10,6 +10,8 @@ enum FileActionKind: String, CaseIterable, Identifiable {
     case reveal
     case quickLook
     // transfer
+    case copyFiles
+    case duplicate
     case copyTo
     case moveTo
     case copyPath
@@ -25,6 +27,8 @@ enum FileActionKind: String, CaseIterable, Identifiable {
         case .open:        return "Open With Default App"
         case .reveal:      return "Reveal in Finder"
         case .quickLook:   return "Quick Look"
+        case .copyFiles:   return "Copy"
+        case .duplicate:   return "Duplicate"
         case .copyTo:      return "Copy to…"
         case .moveTo:      return "Move to…"
         case .copyPath:    return "Copy Path"
@@ -41,6 +45,8 @@ enum FileActionKind: String, CaseIterable, Identifiable {
         case .open:        return "arrow.up.right.square"
         case .reveal:      return "folder"
         case .quickLook:   return "eye"
+        case .copyFiles:   return "doc.on.doc.fill"
+        case .duplicate:   return "plus.square.on.square"
         case .copyTo:      return "doc.on.doc"
         case .moveTo:      return "arrow.right.doc.on.clipboard"
         case .copyPath:    return "doc.on.clipboard"
@@ -66,6 +72,8 @@ enum FileActionKind: String, CaseIterable, Identifiable {
         case .reveal:      return "⌘ R"
         case .quickLook:   return NSLocalizedString("shortcut.space",
                                 value: "Space", comment: "")
+        case .copyFiles:   return "⌘ C"
+        case .duplicate:   return "⌘ D"
         case .copyTo:      return "⇧ ⌘ C"
         case .moveTo:      return "⇧ ⌘ M"
         case .copyPath:    return "⌥ ⌘ C"
@@ -96,6 +104,10 @@ enum FileActionKind: String, CaseIterable, Identifiable {
         case .quickLook:
             let urls = files.compactMap { FileActions.url(for: $0) }
             if !urls.isEmpty { QuickLookCoordinator.shared.show(urls: urls) }
+        case .copyFiles:
+            FileActions.copyFiles(files)
+        case .duplicate:
+            FileActions.duplicate(files)
         case .copyTo:
             FileActions.copyTo(files)
         case .moveTo:
@@ -124,7 +136,7 @@ enum FileActionGroup: CaseIterable {
     var kinds: [FileActionKind] {
         switch self {
         case .primary:     return [.open, .reveal, .quickLook]
-        case .transfer:    return [.copyTo, .moveTo, .copyPath, .rename, .share]
+        case .transfer:    return [.copyFiles, .duplicate, .copyPath, .copyTo, .moveTo, .rename, .share]
         case .destructive: return [.moveToTrash]
         }
     }

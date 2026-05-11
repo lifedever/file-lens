@@ -14,6 +14,10 @@ struct FileGridView: View {
     @State private var dragHandedOff: Bool = false
     @State private var selectionAnchor: UUID?
     @State private var groupedCache = GroupedCache()
+    // 方向键导航的"光标"位置。区别于 selection —— 用户 shift+arrow 扩
+    // 选时,cursor 在移动,anchor 不动,selection 是这两者的区间。
+    @State private var cursor: UUID?
+    @FocusState private var keyboardFocused: Bool
 
     init(workspace: Workspace,
          files: [FileSnapshot],
@@ -31,20 +35,39 @@ struct FileGridView: View {
     }
 
     var body: some View {
-        ScrollView {
-            let grouped = groupedCache.grouped(files: files, identityKey: identityKey)
-            LazyVGrid(columns: columns, spacing: 12, pinnedViews: [.sectionHeaders]) {
-                ForEach(grouped) { slice in
-                    Section {
-                        ForEach(slice.files) { snap in
-                            gridItem(for: snap)
+        // ScrollViewReader 包一层是为了方向键导航 scroll-to-cursor。
+        // .focusable + .onKeyPress 是 macOS 14+ 的 API,我们的 deployment
+        // target 是 14.0,刚好够用。
+        ScrollViewReader { proxy in
+            ScrollView {
+                let grouped = groupedCache.grouped(files: files, identityKey: identityKey)
+                LazyVGrid(columns: columns, spacing: 12, pinnedViews: [.sectionHeaders]) {
+                    ForEach(grouped) { slice in
+                        Section {
+                            ForEach(slice.files) { snap in
+                                gridItem(for: snap)
+                            }
+                        } header: {
+                            sectionHeader(slice.bucket.localizedTitle)
                         }
-                    } header: {
-                        sectionHeader(slice.bucket.localizedTitle)
                     }
                 }
+                .padding(12)
             }
-            .padding(12)
+            .focusable()
+            .focusEffectDisabled()
+            .focused($keyboardFocused)
+            // 视图出现 / files 列表非空时,主动把 keyboard focus 抢过来,
+            // 否则用户得先点一下 grid 才能用方向键。selectedFileIDs 不在
+            // 这里 reset —— 上层 ContentView 切 workspace 时 .id() 重 init,
+            // selection 是 @Binding 由父级管。
+            .onAppear { if !files.isEmpty { keyboardFocused = true } }
+            .onChange(of: files.count) { _, newCount in
+                if newCount > 0, !keyboardFocused { keyboardFocused = true }
+            }
+            .onKeyPress(phases: .down) { press in
+                handleArrowKey(press, proxy: proxy)
+            }
         }
     }
 
@@ -123,6 +146,8 @@ struct FileGridView: View {
         let mods = NSEvent.modifierFlags
         let cmd = mods.contains(.command)
         let shift = mods.contains(.shift)
+        // 点击时也把 keyboard focus 抢过来,确保下一次方向键能用。
+        keyboardFocused = true
 
         if shift,
            let anchor = selectionAnchor,
@@ -131,6 +156,7 @@ struct FileGridView: View {
             let lo = min(from, to)
             let hi = max(from, to)
             selection = Set(files[lo...hi].map(\.id))
+            cursor = snap.id
             return
         }
 
@@ -138,11 +164,13 @@ struct FileGridView: View {
             if selection.contains(snap.id) { selection.remove(snap.id) }
             else { selection.insert(snap.id) }
             selectionAnchor = snap.id
+            cursor = snap.id
             return
         }
 
         selection = [snap.id]
         selectionAnchor = snap.id
+        cursor = snap.id
     }
 
     private func filesForContextMenu(snap: FileSnapshot) -> [FileSnapshot] {
@@ -157,6 +185,59 @@ struct FileGridView: View {
             return files.filter { selection.contains($0.id) }
         }
         return [snap]
+    }
+
+    // MARK: - Arrow-key navigation
+
+    /// 线性方向键导航(方案 A):
+    /// - ← / ↑ = files 数组 prev,→ / ↓ = next
+    /// - Shift+arrow 从 anchor 起扩选,跟 Finder 一致
+    /// - 真二维偏移(列宽 × 行偏移)在 .adaptive 列宽 + grouped section 下
+    ///   太脆,线性走视觉阅读顺序,grouped 跨桶时跳到下一桶刚好合理
+    private func handleArrowKey(_ press: KeyPress, proxy: ScrollViewProxy) -> KeyPress.Result {
+        guard !files.isEmpty else { return .ignored }
+        let step: Int
+        switch press.key {
+        case .upArrow, .leftArrow:    step = -1
+        case .downArrow, .rightArrow: step = 1
+        default: return .ignored
+        }
+        let extend = press.modifiers.contains(.shift)
+
+        // 当前 cursor 位置:优先用 @State cursor,fallback selectionAnchor,
+        // 再 fallback selection 任意一个,最后 -1(起步从头/末)。
+        let currentIdx: Int = {
+            if let c = cursor, let i = files.firstIndex(where: { $0.id == c }) { return i }
+            if let a = selectionAnchor, let i = files.firstIndex(where: { $0.id == a }) { return i }
+            if let any = selection.first, let i = files.firstIndex(where: { $0.id == any }) { return i }
+            return step > 0 ? -1 : files.count
+        }()
+        let nextIdx = max(0, min(files.count - 1, currentIdx + step))
+        let nextID = files[nextIdx].id
+
+        if extend {
+            // shift+arrow:anchor 不动,selection 是 anchor↔cursor 区间
+            let anchorID = selectionAnchor ?? cursor ?? nextID
+            if selectionAnchor == nil { selectionAnchor = anchorID }
+            if let a = files.firstIndex(where: { $0.id == anchorID }) {
+                let lo = min(a, nextIdx)
+                let hi = max(a, nextIdx)
+                selection = Set(files[lo...hi].map(\.id))
+            } else {
+                selection = [nextID]
+            }
+        } else {
+            // 普通 arrow:单选,anchor 跟着走
+            selection = [nextID]
+            selectionAnchor = nextID
+        }
+        cursor = nextID
+        // scrollTo 用 ForEach 自动注入的 id(FileSnapshot.id = UUID),anchor
+        // .center 让光标项停在可视区中央,符合 Finder 体感。
+        withAnimation(.linear(duration: 0.08)) {
+            proxy.scrollTo(nextID, anchor: .center)
+        }
+        return .handled
     }
 }
 

@@ -44,6 +44,8 @@ private struct FileActionShortcut: ViewModifier {
         case .open:        content.keyboardShortcut("o", modifiers: .command)
         case .reveal:      content.keyboardShortcut("r", modifiers: .command)
         case .quickLook:   content.keyboardShortcut(.space, modifiers: [])
+        case .copyFiles:   content.keyboardShortcut("c", modifiers: .command)
+        case .duplicate:   content.keyboardShortcut("d", modifiers: .command)
         case .copyTo:      content.keyboardShortcut("c", modifiers: [.command, .shift])
         case .moveTo:      content.keyboardShortcut("m", modifiers: [.command, .shift])
         case .copyPath:    content.keyboardShortcut("c", modifiers: [.command, .option])

@@ -705,18 +705,28 @@ struct ContentView: View {
             Button("Quick Look") { quickLookSelected() }
                 .keyboardShortcut(.space, modifiers: [])
                 .hidden()
+            // ⌘A — Finder 全选语义:作用于当前过滤后的可见文件列表
+            // (sidebar 选择 + 搜索都已过滤过)。搜索框聚焦时 SwiftUI 让
+            // TextField 先消费,跟 Finder 一致 —— 这里无需特殊判断。
+            Button("Select All") { selectAllVisible() }
+                .keyboardShortcut("a", modifiers: .command)
+                .disabled(selectedWorkspace == nil)
+                .hidden()
         }
     }
 
     @ViewBuilder
     private var selectionKeys: some View {
         // .disabled 必须只读 @State `selectedFileIDs`(Set<UUID>),不能调
-        // currentSelection —— 后者每次都跑 filesForCurrentSelection,11 个
+        // currentSelection —— 后者每次都跑 filesForCurrentSelection,
         // hidden button × body 高频 recompute(indexing 期间 FileIndexer 每
         // 200 个文件 save 一次,每次都 @Bindable 通知整个 ContentView body
         // 重 build)= 数百次 ffcs/sec,顺带触发 SidebarView 的 fetchCount
         // 风暴(每秒 300+ SQL),主线程被 SQL 阻塞 → UI 卡死。
         // action closure 里的 currentSelection 是惰性的,点击时才跑一次,OK。
+        //
+        // 拆成两个 Group:SwiftUI ViewBuilder 单个 closure 上限 10 个 view,
+        // 加了 ⌘C / ⌘D 后总数 12,溢出 ⇒ 编译报错。两个 Group 各自计数。
         let isEmpty = selectedFileIDs.isEmpty
         let isSingle = selectedFileIDs.count == 1
         Group {
@@ -734,6 +744,14 @@ struct ContentView: View {
             }
             .keyboardShortcut(.delete, modifiers: .command)
             .disabled(isEmpty).hidden()
+            // Finder ⌘C 语义:把 fileURL 放 NSPasteboard,之后在 Finder
+            // 任意位置 ⌘V 能粘出真文件(不是路径文本,那是 ⌥⌘C)。
+            Button("Copy") { FileActions.copyFiles(currentSelection) }
+                .keyboardShortcut("c", modifiers: .command)
+                .disabled(isEmpty).hidden()
+            Button("Duplicate") { FileActions.duplicate(currentSelection) }
+                .keyboardShortcut("d", modifiers: .command)
+                .disabled(isEmpty).hidden()
             Button("Copy Path") { FileActions.copyPath(currentSelection) }
                 .keyboardShortcut("c", modifiers: [.command, .option])
                 .disabled(isEmpty).hidden()
@@ -748,6 +766,8 @@ struct ContentView: View {
             Button("Share…") { FileActions.share(currentSelection, from: nil) }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
                 .disabled(isEmpty).hidden()
+        }
+        Group {
             // Plain Return = rename(单文件,Finder 约定)。SwiftUI 的
             // keyboardShortcut 尊重 first-responder,搜索框等会先消费。
             Button("Rename…") {
@@ -763,6 +783,16 @@ struct ContentView: View {
             .keyboardShortcut("k", modifiers: .command)
             .disabled(isEmpty).hidden()
         }
+    }
+
+    /// ⌘A 实现:把当前 workspace + sidebar + 搜索过滤后的全部文件 ID 灌进
+    /// selectedFileIDs。点击时才跑 filesForCurrentSelection,有 filesMemo
+    /// 二级缓存,O(1) 命中。
+    @MainActor
+    private func selectAllVisible() {
+        guard let ws = selectedWorkspace else { return }
+        let visible = filesForCurrentSelection(workspace: ws)
+        selectedFileIDs = Set(visible.map(\.id))
     }
 
     @ViewBuilder

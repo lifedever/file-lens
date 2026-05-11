@@ -66,10 +66,12 @@ enum FileActions {
 
         var errors: [Error] = []
         var moved = 0
+        var firstSucceededName: String?
         for f in files {
             guard let url = url(for: f) else { continue }
             do {
                 try FileManager.default.trashItem(at: url, resultingItemURL: nil)
+                if firstSucceededName == nil { firstSucceededName = f.name }
                 f.isPresent = false
                 moved += 1
             } catch {
@@ -78,7 +80,10 @@ enum FileActions {
         }
         try? modelContext.save()
         if let first = errors.first { NSAlert(error: first).runModal() }
-        if moved > 0 { ToastCenter.shared.success(toastMessage("Moved to Trash", count: moved)) }
+        if moved > 0 {
+            ToastCenter.shared.success(friendlyToast(verbKey: "Moved to Trash",
+                firstName: firstSucceededName, successCount: moved))
+        }
     }
 
     // MARK: - Copy / Move to…
@@ -89,18 +94,23 @@ enum FileActions {
               let dest = pickDestination(prompt: NSLocalizedString("Copy", value: "Copy", comment: "")) else { return }
         var errors: [Error] = []
         var copied = 0
+        var firstSucceededName: String?
         for f in files {
             guard let src = url(for: f) else { continue }
             let target = uniqueDestination(in: dest, for: src.lastPathComponent)
             do {
                 try FileManager.default.copyItem(at: src, to: target)
+                if firstSucceededName == nil { firstSucceededName = f.name }
                 copied += 1
             } catch {
                 errors.append(error)
             }
         }
         if let first = errors.first { NSAlert(error: first).runModal() }
-        if copied > 0 { ToastCenter.shared.success(toastMessage("Copied", count: copied)) }
+        if copied > 0 {
+            ToastCenter.shared.success(friendlyToast(verbKey: "Copied",
+                firstName: firstSucceededName, successCount: copied))
+        }
     }
 
     @MainActor
@@ -109,11 +119,13 @@ enum FileActions {
               let dest = pickDestination(prompt: NSLocalizedString("Move", value: "Move", comment: "")) else { return }
         var errors: [Error] = []
         var moved = 0
+        var firstSucceededName: String?
         for f in files {
             guard let src = url(for: f) else { continue }
             let target = uniqueDestination(in: dest, for: src.lastPathComponent)
             do {
                 try FileManager.default.moveItem(at: src, to: target)
+                if firstSucceededName == nil { firstSucceededName = f.name }
                 // FSEvents will catch this too, but flip the flag immediately
                 // so the UI doesn't show a stale "still here" row.
                 f.isPresent = false
@@ -124,7 +136,63 @@ enum FileActions {
         }
         try? modelContext.save()
         if let first = errors.first { NSAlert(error: first).runModal() }
-        if moved > 0 { ToastCenter.shared.success(toastMessage("Moved", count: moved)) }
+        if moved > 0 {
+            ToastCenter.shared.success(friendlyToast(verbKey: "Moved",
+                firstName: firstSucceededName, successCount: moved))
+        }
+    }
+
+    // MARK: - Copy files (Finder ⌘C semantic)
+
+    /// Writes file references to NSPasteboard so the user can ⌘V into Finder
+    /// or any file-aware app and the actual files paste out. This matches
+    /// Finder's ⌘C semantic (file refs), not just path text — `copyPath` is
+    /// the path-as-text variant.
+    @MainActor
+    static func copyFiles(_ files: [FileNode]) {
+        // 取第一个能成功解析到 URL 的文件,既作 toast 名也作首项 URL ——
+        // 这俩同一个对象,toast 里说哪个被复制,粘贴出去就是哪个。
+        let resolved = files.compactMap { f -> (FileNode, URL)? in
+            guard let u = url(for: f) else { return nil }
+            return (f, u)
+        }
+        guard !resolved.isEmpty else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        // 写 [NSURL] 而不是 [URL] —— NSPasteboard.writeObjects 需要
+        // NSPasteboardWriting,URL 直接不 conform,NSURL 自带桥接。
+        pb.writeObjects(resolved.map { $0.1 } as [NSURL])
+        ToastCenter.shared.success(friendlyToast(verbKey: "Copied",
+            firstName: resolved.first?.0.name, successCount: resolved.count))
+    }
+
+    // MARK: - Duplicate in place
+
+    /// Finder's ⌘D — copy each file next to its source with " 2"/" 3" suffix.
+    /// FSEvents will pick up the new files; no manual indexer ping needed.
+    @MainActor
+    static func duplicate(_ files: [FileNode]) {
+        guard !files.isEmpty else { return }
+        var errors: [Error] = []
+        var dup = 0
+        var firstSucceededName: String?
+        for f in files {
+            guard let src = url(for: f) else { continue }
+            let dir = src.deletingLastPathComponent()
+            let target = uniqueDestination(in: dir, for: src.lastPathComponent)
+            do {
+                try FileManager.default.copyItem(at: src, to: target)
+                if firstSucceededName == nil { firstSucceededName = f.name }
+                dup += 1
+            } catch {
+                errors.append(error)
+            }
+        }
+        if let first = errors.first { NSAlert(error: first).runModal() }
+        if dup > 0 {
+            ToastCenter.shared.success(friendlyToast(verbKey: "Duplicated",
+                firstName: firstSucceededName, successCount: dup))
+        }
     }
 
     // MARK: - Copy path
@@ -216,15 +284,59 @@ enum FileActions {
 
     // MARK: - Helpers
 
-    /// Builds a toast string like "Moved" (count == 1) or "Moved 3 files"
-    /// (count > 1). Both forms are translated via xcstrings.
-    private static func toastMessage(_ baseKey: String, count: Int) -> String {
-        if count <= 1 {
-            return NSLocalizedString(baseKey, value: baseKey, comment: "")
+    /// 友好型 toast 文案 ——
+    /// - 单文件:`Copied “name”` / `已复制 "name"`
+    /// - 多文件:`Copied “name” + N more files` / `已复制 "name" 等 N 个文件`
+    ///
+    /// 文件名超过 28 字符用 "…" 截断,保留扩展名,避免吃满整条 toast 把
+    /// 别的字挤出去。
+    ///
+    /// 本地化格式串带三个位置参数 —— 不同语种的"N"语义差异很大:
+    /// - en `+ %3$lld more` 用剩余数(总数 - 1)
+    /// - zh `等 %2$lld 个文件` 用总数(包含首项)
+    /// 各语种 format 自行挑取合适位置,Swift 调用方一次传齐就行。
+    @MainActor
+    private static func friendlyToast(verbKey: String,
+                                      firstName: String?,
+                                      successCount: Int) -> String {
+        guard successCount > 0 else {
+            return NSLocalizedString(verbKey, value: verbKey, comment: "")
         }
-        let formatKey = "\(baseKey) %lld files"
-        let format = NSLocalizedString(formatKey, value: formatKey, comment: "")
-        return String(format: format, count)
+        let name = firstName.map { truncateForToast($0) } ?? ""
+        // 拿不到文件名时退回旧 "count-only" 文案,不至于把 "" 显示出来。
+        if name.isEmpty {
+            if successCount == 1 {
+                return NSLocalizedString(verbKey, value: verbKey, comment: "")
+            }
+            let fallbackKey = "\(verbKey) %lld files"
+            let format = NSLocalizedString(fallbackKey, value: fallbackKey, comment: "")
+            return String(format: format, successCount)
+        }
+        if successCount == 1 {
+            let key = "\(verbKey).single.format"
+            let fallback = "\(verbKey) “%@”"
+            return String(format: NSLocalizedString(key, value: fallback, comment: ""), name)
+        }
+        let key = "\(verbKey).multi.format"
+        let fallback = "\(verbKey) “%1$@” + %3$lld more files"
+        let format = NSLocalizedString(key, value: fallback, comment: "")
+        return String(format: format, name, successCount, successCount - 1)
+    }
+
+    /// 把文件名压到 toast 显示宽度内。保留扩展名,前缀截断加 "…"。
+    /// 没扩展名(或扩展名超长)时退回纯前缀 + "…"。
+    private static func truncateForToast(_ name: String, max maxLen: Int = 28) -> String {
+        guard name.count > maxLen else { return name }
+        let ns = name as NSString
+        let ext = ns.pathExtension
+        if !ext.isEmpty, ext.count <= 5 {
+            let stem = ns.deletingPathExtension
+            let budget = maxLen - ext.count - 2  // "…" + "."
+            if budget >= 4 {
+                return String(stem.prefix(budget)) + "…." + ext
+            }
+        }
+        return String(name.prefix(maxLen - 1)) + "…"
     }
 
     @MainActor

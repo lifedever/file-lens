@@ -1241,6 +1241,55 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制 %lld 个文件" } }
       }
     },
+    "Copied.single.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copied “%@”" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制 “%@”" } }
+      }
+    },
+    "Copied.multi.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Copied “%1$@” + %3$lld more files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制 “%1$@” 等 %2$lld 个文件" } }
+      }
+    },
+    "Duplicate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Duplicate" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "原位置复制" } }
+      }
+    },
+    "Duplicated" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Duplicated" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制副本" } }
+      }
+    },
+    "Duplicated %lld files" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Duplicated %lld files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制 %lld 个副本" } }
+      }
+    },
+    "Duplicated.single.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Duplicated “%@”" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制副本 “%@”" } }
+      }
+    },
+    "Duplicated.multi.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Duplicated “%1$@” + %3$lld more files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已复制副本 “%1$@” 等 %2$lld 个文件" } }
+      }
+    },
     "Moved" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1255,6 +1304,20 @@
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移动 %lld 个文件" } }
       }
     },
+    "Moved.single.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved “%@”" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移动 “%@”" } }
+      }
+    },
+    "Moved.multi.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved “%1$@” + %3$lld more files" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移动 “%1$@” 等 %2$lld 个文件" } }
+      }
+    },
     "Moved to Trash" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -1267,6 +1330,20 @@
       "localizations" : {
         "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved %lld to Trash" } },
         "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已移到废纸篓 %lld 个文件" } }
+      }
+    },
+    "Moved to Trash.single.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved “%@” to Trash" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已将 “%@” 移到废纸篓" } }
+      }
+    },
+    "Moved to Trash.multi.format" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Moved “%1$@” + %3$lld more to Trash" } },
+        "zh-Hans" : { "stringUnit" : { "state" : "translated", "value" : "已将 “%1$@” 等 %2$lld 个文件移到废纸篓" } }
       }
     },
     "path.copied.single.format" : {
