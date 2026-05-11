@@ -1,25 +1,25 @@
 {
-  "version": "1.1.3",
-  "tag": "v1.1.3",
-  "url": "https://github.com/lifedever/FileLens/releases/tag/v1.1.3",
+  "version": "1.1.4",
+  "tag": "v1.1.4",
+  "url": "https://github.com/lifedever/FileLens/releases/tag/v1.1.4",
   "assets": {
     "arm64": {
       "dmg_urls": [
-        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.3/FileLens-1.1.3-arm64.dmg",
-        "https://github.com/lifedever/FileLens/releases/download/v1.1.3/FileLens-1.1.3-arm64.dmg"
+        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg",
+        "https://github.com/lifedever/FileLens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg"
       ]
     },
     "x86_64": {
       "dmg_urls": [
-        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.3/FileLens-1.1.3-x86_64.dmg",
-        "https://github.com/lifedever/FileLens/releases/download/v1.1.3/FileLens-1.1.3-x86_64.dmg"
+        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-x86_64.dmg",
+        "https://github.com/lifedever/FileLens/releases/download/v1.1.4/FileLens-1.1.4-x86_64.dmg"
       ]
     }
   },
   "dmg_urls": [
-    "https://gitee.com/lifedever/file-lens/releases/download/v1.1.3/FileLens-1.1.3-arm64.dmg",
-    "https://github.com/lifedever/FileLens/releases/download/v1.1.3/FileLens-1.1.3-arm64.dmg"
+    "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg",
+    "https://github.com/lifedever/FileLens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg"
   ],
-  "dmg_url": "https://gitee.com/lifedever/file-lens/releases/download/v1.1.3/FileLens-1.1.3-arm64.dmg",
-  "notes": "# FileLens v1.1.3\n\n## 中文\n\n### ✨ 新功能\n\n#### Finder 风格快捷键\n- **⌘C 复制文件** —— 把选中文件放到剪贴板，切到 Finder 任意位置按 ⌘V 就能粘出真文件（不是路径文本）。和 Finder 一致。\n- **⌘D 原位置复制** —— 在每个选中文件所在目录生成 `name 2.ext`，再按一次出 `name 3.ext`，跟 Finder 同款。\n- **⌘A 全选** —— 选中当前可见的全部文件（已应用 sidebar 过滤 + 搜索）。搜索框聚焦时 ⌘A 选搜索文本，行为符合直觉。\n- **Grid 方向键导航** —— `↑ ↓ ← →` 按线性顺序移动选中焦点，`Shift+方向键` 从锚点起扩选，光标自动滚回可视区中央。\n\n#### 友好型操作提示\n所有复制 / 移动 / 删除操作的 Toast 显示具体文件名，不再只是 \"Copied 3 files\"：\n- 单文件：`已复制 \"report.pdf\"`\n- 多文件：`已复制 \"report.pdf\" 等 5 个文件`\n- 长文件名自动截断保留扩展名：`very-long-project-pl….pdf`\n\n### ⚡ 性能\n\n- **列表视图重写为 NSTableView 包装** —— 1 万+ 文件无卡顿，cell 实例数恒定约 30 个。原 SwiftUI Table 在大数据集下点击/滚动会冻 UI 几秒。\n- **Grid 与 List 常驻视图树** —— 切换视图模式瞬间生效，不再有 ~50ms 的空帧重建。\n- **Workspace 切换走 session 缓存** —— 二次进入同一 workspace 跳过重复扫描，秒开。\n- **索引期间不再有 SQL 风暴** —— FileIndexer 写入时 SidebarView 的 fetch count 不再被高频 body recompute 拖累，主线程不卡。\n\n### 🎨 改进\n\n- 每个 workspace 独立保存视图模式 / 图标大小 / 列定制（之前是全局共享）\n- 规则编辑器「取消」按钮真的能撤销改动\n- Sidebar 计数走 ruleID 而非规则名，规则改名后计数不再瞬时错位\n- 启动时自动迁移老版本的视图设置到新结构（一次性、可重入）\n\n---\n\n## English\n\n### ✨ New\n\n#### Finder-style Keyboard Shortcuts\n- **⌘C — Copy files** to the clipboard. ⌘V into any Finder folder pastes the real files (not path text). Matches Finder.\n- **⌘D — Duplicate in place** — creates `name 2.ext` next to each selected file; press again for `name 3.ext`. Matches Finder.\n- **⌘A — Select all** — selects every currently-visible file (after sidebar filter + search). Falls through to text selection when the search field is focused.\n- **Grid arrow-key navigation** — `↑ ↓ ← →` moves selection in linear order; `Shift+arrow` extends from anchor; the cursor auto-scrolls to center.\n\n#### Friendlier Operation Toasts\nCopy / Move / Trash toasts now show the actual file name instead of just `Copied 3 files`:\n- Single: `Copied \"report.pdf\"`\n- Multiple: `Copied \"report.pdf\" + 4 more files`\n- Long names truncate with extension preserved: `very-long-project-pl….pdf`\n\n### ⚡ Performance\n\n- **List view rewritten as NSTableView wrapper** — no freezes at 10k+ files; cell instance count holds steady around 30. Previous SwiftUI Table froze the UI for seconds on large datasets during scroll/click.\n- **Grid and List both stay mounted** — toggling view mode is instant; no more ~50ms blank-frame rebuild.\n- **Workspace revisit skips rescan** — second-time entry into the same workspace is instant via session cache.\n- **No more SQL storm during indexing** — SidebarView's fetch-count calls are no longer churned by high-frequency body recompute while FileIndexer writes.\n\n### 🎨 Improvements\n\n- Per-workspace view mode / icon size / column customization (was global before)\n- Rule editor's Cancel button actually cancels edits\n- Sidebar counts use ruleID instead of rule name — no transient mis-count when renaming a rule\n- One-time, re-entrant migration of old view settings to the new per-workspace structure on launch"
+  "dmg_url": "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg",
+  "notes": "# FileLens v1.1.4\n\n## 中文\n\n### 🚨 关键修复\n\n**老用户升级后看不到 workspace 的问题** —— 某个早期版本把 SwiftData 从单一\n`default.store` 拆成 `catalog.sqlite` + `workspaces/<uuid>.sqlite` 两层架构,\n但**没写迁移代码**。所有从那个版本之前升上来的用户启动后会看到 sidebar\n是空的,以为数据丢了。\n\n**本版本启动时自动一次性迁移**:\n- 把 `default.store` 里的 workspace / 规则 / 条件全量复制到 `catalog.sqlite`\n- 老的 `default.store` 重命名为 `default.store.legacy` 作为安全备份永久保留\n- 文件索引数据(具体每个文件)不迁移,FSEvents 自动重扫文件夹生成,几秒\n  内完成。**所有规则分类、文件夹设置、显示名、bookmark 权限——完整保留**\n\n**如果你升级到 1.1.3 之后看到空的 sidebar**:升到 1.1.4 启动一次,数据会\n自动回来。原始 `default.store` 始终没被删,只是改名,绝对没丢。\n\n---\n\n## English\n\n### 🚨 Critical Fix\n\n**Lost-workspaces-on-upgrade bug** — an earlier version split SwiftData\nstorage from a single `default.store` into a two-tier `catalog.sqlite` +\n`workspaces/<uuid>.sqlite` layout, **without shipping migration code**.\nUsers upgrading from before that split would launch the new app and see\nan empty sidebar, thinking their data was gone.\n\n**This version runs a one-time migration on launch**:\n- Copies all workspaces / rules / conditions from `default.store` into\n  `catalog.sqlite`\n- Renames the old `default.store` to `default.store.legacy` as a permanent\n  safety backup\n- File index data (per-file rows) is not migrated; FSEvents will rescan\n  folders automatically within seconds. **All rule classifications, folder\n  settings, display names, and bookmark permissions are preserved.**\n\n**If your sidebar went empty after upgrading to 1.1.3**: just upgrade to\n1.1.4 and launch once — your data will come back. The original\n`default.store` was never deleted, only renamed."
 }
