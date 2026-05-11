@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		07491216A1DADF7A13F557F7 /* StoreMigrationV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E2FF54453E865352A076683 /* StoreMigrationV2.swift */; };
 		0D10997452F00B1B358DF73A /* Condition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1510856F65B2DAA3CF91E5A6 /* Condition.swift */; };
 		0DF93577F854A421F8EBC0A4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 8437296A7FAD343066127C37 /* Assets.xcassets */; };
 		19A2555D485A20DFC6E012B6 /* PreviewHost.swift in Sources */ = {isa = PBXBuildFile; fileRef = BCC3F00D5435C4A19E2F05D8 /* PreviewHost.swift */; };
@@ -133,6 +134,7 @@
 		9B1E79EB800BF7F6A081E690 /* KindClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindClassifierTests.swift; sourceTree = "<group>"; };
 		9BDFC79CD7F350521E290383 /* FileGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileGridView.swift; sourceTree = "<group>"; };
 		9D7499DA1E1D36C3B1CF3285 /* UnsupportedPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UnsupportedPreview.swift; sourceTree = "<group>"; };
+		9E2FF54453E865352A076683 /* StoreMigrationV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StoreMigrationV2.swift; sourceTree = "<group>"; };
 		9E6DBD019B713552D041AF2D /* UpdateDialogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateDialogView.swift; sourceTree = "<group>"; };
 		9F0F30CB69E8CE7F2F5BA1A2 /* KindDisplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KindDisplay.swift; sourceTree = "<group>"; };
 		A65097F17D2597E22F273537 /* ConfigIO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigIO.swift; sourceTree = "<group>"; };
@@ -205,6 +207,7 @@
 				FD4B927888C55EEE3EF9DF42 /* RuleEngine.swift */,
 				43A6EE5ECCA3636AC3AA6BF6 /* RuleNameMigration.swift */,
 				44E75E7BFADBB610FFBADE45 /* StoreMigration.swift */,
+				9E2FF54453E865352A076683 /* StoreMigrationV2.swift */,
 				B74B74F30C5CE1723296EDE7 /* TagDisplay.swift */,
 				1AC448360C870672CEE5E20A /* ThumbnailService.swift */,
 				D6C83B647598B4954994899F /* Toast.swift */,
@@ -495,6 +498,7 @@
 				E040CF68070AD71791C00E18 /* SettingsView.swift in Sources */,
 				64BB924545EC9CB42D0B24B5 /* SidebarView.swift in Sources */,
 				35DAAE680BD7C5AC076D0672 /* StoreMigration.swift in Sources */,
+				07491216A1DADF7A13F557F7 /* StoreMigrationV2.swift in Sources */,
 				B8963B377E8BC946E90A83B3 /* TagDisplay.swift in Sources */,
 				B3FABADE094A0DAB8751E53E /* ThumbnailService.swift in Sources */,
 				751E64C7F0908F5C0AAEF373 /* Toast.swift in Sources */,

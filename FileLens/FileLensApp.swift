@@ -37,6 +37,13 @@ struct FileLensApp: App {
                     guard !isRunningTests else { return }
                     applyPersistedAppearance()
                     GlobalShortcuts.register()
+                    // ⚠️ 必须**最先**跑 —— 把老版本 default.store 里的
+                    // workspace/rule/condition 迁到新的 catalog.sqlite。
+                    // 后面所有 migration 都假设数据在 catalog,迁完才能命中。
+                    StoreMigrationV2.runIfNeeded(
+                        baseDir: storeManager.baseDir,
+                        catalog: storeManager.catalog
+                    )
                     // Migrate older installs: rules created before
                     // BuiltInRules.all() localized at creation time are
                     // stored with English keys and read awkwardly in the
