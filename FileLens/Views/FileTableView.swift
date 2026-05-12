@@ -677,9 +677,16 @@ private final class FileTableCell: NSTableCellView {
                   tagNames: [String],
                   contextProvider: @escaping () -> [FileNode],
                   modelContext: ModelContext) {
-        let content = Self.makeContent(
-            columnID: columnID, snapshot: snapshot, tagNames: tagNames,
-            contextProvider: contextProvider, modelContext: modelContext
+        // .contextMenu 挂在最外层 —— 整行所有列右键都能弹，跟 Finder 一致。
+        // 不能只挂在 name 列 cell 上,否则右键 size / date / tags / kind 列只
+        // 命中 NSTableView 的空 menu,什么都不弹。
+        let inner = Self.makeContent(
+            columnID: columnID, snapshot: snapshot, tagNames: tagNames
+        )
+        let content = AnyView(
+            inner.contextMenu {
+                FileContextMenu(files: contextProvider(), modelContext: modelContext)
+            }
         )
         if let host = hostingView {
             host.rootView = content
@@ -698,9 +705,7 @@ private final class FileTableCell: NSTableCellView {
     }
 
     private static func makeContent(columnID: String, snapshot: FileSnapshot,
-                                    tagNames: [String],
-                                    contextProvider: @escaping () -> [FileNode],
-                                    modelContext: ModelContext) -> AnyView {
+                                    tagNames: [String]) -> AnyView {
         switch columnID {
         case "name":
             return AnyView(
@@ -708,9 +713,6 @@ private final class FileTableCell: NSTableCellView {
                     FileThumbnail(file: snapshot, size: 16)
                     Text(snapshot.name).lineLimit(1).truncationMode(.middle)
                     Spacer(minLength: 0)
-                }
-                .contextMenu {
-                    FileContextMenu(files: contextProvider(), modelContext: modelContext)
                 }
             )
         case "size":

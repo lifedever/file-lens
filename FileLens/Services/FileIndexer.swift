@@ -110,10 +110,34 @@ final class FileIndexer {
     ) async throws {
         // === 阶段 1:文件 IO 在 detached task 跑(背景线程,主线程不堵)===
         let options = Self.makeScanOptions(workspace: workspace)
-        let metadata: [FileMetadata] = try await Task.detached(priority: .userInitiated) {
+        let rawMetadata: [FileMetadata] = try await Task.detached(priority: .userInitiated) {
             try Self.enumerateFiles(at: folderURL, options: options)
         }.value
-        probe("io-end", metadata.count)
+        probe("io-end", rawMetadata.count)
+
+        // 闸 1: enumerator 在 FS 快速变动时偶发对同名 entry 双吐(Chrome
+        // .crdownload → final rename 期间的 readdir race 复现稳定),按
+        // relativePath dedup,保留最后一份(resourceValues 最新)。
+        // 不做这层 → 同次 scan 里同 path 的两份 meta,byPath 是 fetch 快照
+        // 不会反映本次 insert,第二份走 insert 分支 → 数据库出现两条
+        // 同 relativePath 的 FileNode(历史脏数据来源)。
+        let metadata: [FileMetadata] = {
+            var seen: [String: Int] = [:]
+            var result: [FileMetadata] = []
+            result.reserveCapacity(rawMetadata.count)
+            for m in rawMetadata {
+                if let idx = seen[m.relativePath] {
+                    result[idx] = m
+                } else {
+                    seen[m.relativePath] = result.count
+                    result.append(m)
+                }
+            }
+            return result
+        }()
+        if metadata.count != rawMetadata.count {
+            probe("meta-dedup-collapsed", rawMetadata.count - metadata.count)
+        }
 
         // === 阶段 2:回主线程,在 workspace store 上批量 insert/update FileNode ===
         let scanStart = Date()
@@ -122,7 +146,28 @@ final class FileIndexer {
         let existing = (try? storeCtx.fetch(FetchDescriptor<FileNode>())) ?? []
         var byPath: [String: FileNode] = [:]
         byPath.reserveCapacity(existing.count)
-        for node in existing { byPath[node.relativePath] = node }
+        // 闸 2 自愈: existing 已有同 relativePath 多条(早期 byPath dedup
+        // miss 遗留的历史脏数据),留 lastSeenAt 最新一条,其余物理 delete
+        // —— 不是 isPresent=false,免得永久占行。新装用户 existing 空,
+        // 这段是 no-op;老用户跑一次就清干净,后续 scan 不再触发。
+        var selfHealedDuplicates = 0
+        var deletedNodeIDs: Set<UUID> = []
+        for node in existing {
+            if let prev = byPath[node.relativePath] {
+                let (keep, drop) = prev.lastSeenAt >= node.lastSeenAt
+                    ? (prev, node)
+                    : (node, prev)
+                storeCtx.delete(drop)
+                deletedNodeIDs.insert(drop.id)
+                byPath[node.relativePath] = keep
+                selfHealedDuplicates += 1
+            } else {
+                byPath[node.relativePath] = node
+            }
+        }
+        if selfHealedDuplicates > 0 {
+            probe("self-heal-duplicates", selfHealedDuplicates)
+        }
         probe("existing-loaded", existing.count)
 
         if !silent {
@@ -172,6 +217,9 @@ final class FileIndexer {
                     fileResourceID: meta.fileResourceID, isDirectory: meta.isDirectory
                 )
                 storeCtx.insert(node)
+                // 兜底:写回 byPath。本来 metadata 已 dedup 不会再撞,但加这
+                // 一行后即使将来 enumerator 出新花样也不会形成重复 insert。
+                byPath[meta.relativePath] = node
                 newNodesCount += 1
             }
             allPresentNodes.append(node)
@@ -199,21 +247,26 @@ final class FileIndexer {
         try storeCtx.save()
         probe("scan-loop-end", metadata.count)
 
-        // 这一批没扫到的旧节点标记 vanished
+        // 这一批没扫到的旧节点标记 vanished。跳过 self-heal 已经 storeCtx.delete
+        // 的节点 —— 它们已经物理删,访问属性可能触发 SwiftData runtime error。
         var vanishedCount = 0
-        for node in existing where node.lastSeenAt < scanStart && node.isPresent {
+        for node in existing where !deletedNodeIDs.contains(node.id)
+                                 && node.lastSeenAt < scanStart
+                                 && node.isPresent {
             node.isPresent = false
             vanishedCount += 1
         }
         try storeCtx.save()
         probe("vanished-marked", vanishedCount)
 
-        // silent 模式 fast path:文件夹完全没变化(没新增、没消失)→ 跳过
-        // applyRules + count + catalog save。FolderWatcher 会大量触发这种
-        // "没变化"的 scan(任何文件 atime/mtime 改动都触发,但绝大多数文件
-        // 不在 watch 关注的属性上有变化)。直接 return 把主线程从十几秒占用
-        // 降到只有 IO + main loop 那 1-2s。
-        if silent && newNodesCount == 0 && vanishedCount == 0 {
+        // silent 模式 fast path:文件夹完全没变化(没新增、没消失、没 self-heal)
+        // → 跳过 applyRules + count + catalog save。FolderWatcher 会大量触发
+        // 这种"没变化"的 scan(任何文件 atime/mtime 改动都触发,但绝大多数
+        // 文件不在 watch 关注的属性上有变化)。直接 return 把主线程从十几秒
+        // 占用降到只有 IO + main loop 那 1-2s。
+        // self-heal 也算"变化"(物理删了脏数据行),走 full path 让
+        // scanGeneration bump + cache 失效。
+        if silent && newNodesCount == 0 && vanishedCount == 0 && selfHealedDuplicates == 0 {
             probe("silent-noop-exit", allPresentNodes.count)
             return
         }
@@ -270,6 +323,10 @@ final class FileIndexer {
         }
         workspace.fileCount = presentCount
         workspace.uncategorizedCount = uncategorized
+        // bump 单调代数,让 FilesMemo cache 一定失效 —— 即使 presentCount
+        // 跟上次完全一样(Chrome download → rename 这种增删抵消场景)也
+        // 能让 UI 看到最新 isPresent 集合。
+        workspace.scanGeneration &+= 1
         if let data = try? JSONEncoder().encode(ruleCounts),
            let json = String(data: data, encoding: .utf8) {
             workspace.ruleCountsJSON = json

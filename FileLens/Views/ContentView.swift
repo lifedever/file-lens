@@ -988,7 +988,11 @@ private final class FilesMemo {
     }
 
     private static func versionKey(ws: Workspace) -> String {
-        "\(ws.fileCount)"
+        // 单看 fileCount 在"新增 N + vanished N = 净 0"场景下不变,cache
+        // 永久 stale(Chrome .crdownload → 重命名 走的就是这个 path)。
+        // 联合 scanGeneration(每次完整 scan +1)确保任何一次 scan 完成都
+        // 让 cache 失效一次。
+        "\(ws.fileCount)|\(ws.scanGeneration)"
     }
 
     private static func selectionKey(selection: SidebarSelection?, search: String) -> String {

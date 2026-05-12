@@ -91,6 +91,14 @@ final class Workspace {
     /// 没匹配任何 rule 的文件数(未归档)。
     var uncategorizedCount: Int = 0
 
+    /// 单调递增的 scan 代数(generation)。FileIndexer 每完成一次非 fast-path
+    /// scan 都 +1。`FilesMemo` 用它做 cache invalidation key —— 避免 fileCount
+    /// 数值碰巧不变(新增 N + vanished N = 净 0)时 cache 永远 stale 让幽灵
+    /// 文件留在列表里(踩过坑:Chrome 下载 → 重命名场景下 .crdownload 永远
+    /// 不消失,因为 fileCount 没变)。
+    /// 用 Int 防 wrap;每天几百次 scan 也要 N 亿年才溢出。
+    var scanGeneration: Int = 0
+
     @Relationship(deleteRule: .cascade, inverse: \Rule.workspace)
     var rules: [Rule] = []
     // 注意:**不再**有 `@Relationship var files: [FileNode]` ——
