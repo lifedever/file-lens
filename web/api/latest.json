@@ -1,25 +1,25 @@
 {
-  "version": "1.1.4",
-  "tag": "v1.1.4",
-  "url": "https://github.com/lifedever/FileLens/releases/tag/v1.1.4",
+  "version": "1.1.5",
+  "tag": "v1.1.5",
+  "url": "https://github.com/lifedever/FileLens/releases/tag/v1.1.5",
   "assets": {
     "arm64": {
       "dmg_urls": [
-        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg",
-        "https://github.com/lifedever/FileLens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg"
+        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.5/FileLens-1.1.5-arm64.dmg",
+        "https://github.com/lifedever/FileLens/releases/download/v1.1.5/FileLens-1.1.5-arm64.dmg"
       ]
     },
     "x86_64": {
       "dmg_urls": [
-        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-x86_64.dmg",
-        "https://github.com/lifedever/FileLens/releases/download/v1.1.4/FileLens-1.1.4-x86_64.dmg"
+        "https://gitee.com/lifedever/file-lens/releases/download/v1.1.5/FileLens-1.1.5-x86_64.dmg",
+        "https://github.com/lifedever/FileLens/releases/download/v1.1.5/FileLens-1.1.5-x86_64.dmg"
       ]
     }
   },
   "dmg_urls": [
-    "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg",
-    "https://github.com/lifedever/FileLens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg"
+    "https://gitee.com/lifedever/file-lens/releases/download/v1.1.5/FileLens-1.1.5-arm64.dmg",
+    "https://github.com/lifedever/FileLens/releases/download/v1.1.5/FileLens-1.1.5-arm64.dmg"
   ],
-  "dmg_url": "https://gitee.com/lifedever/file-lens/releases/download/v1.1.4/FileLens-1.1.4-arm64.dmg",
-  "notes": "# FileLens v1.1.4\n\n## 中文\n\n### 🚨 关键修复\n\n**老用户升级后看不到 workspace 的问题** —— 某个早期版本把 SwiftData 从单一\n`default.store` 拆成 `catalog.sqlite` + `workspaces/<uuid>.sqlite` 两层架构,\n但**没写迁移代码**。所有从那个版本之前升上来的用户启动后会看到 sidebar\n是空的,以为数据丢了。\n\n**本版本启动时自动一次性迁移**:\n- 把 `default.store` 里的 workspace / 规则 / 条件全量复制到 `catalog.sqlite`\n- 老的 `default.store` 重命名为 `default.store.legacy` 作为安全备份永久保留\n- 文件索引数据(具体每个文件)不迁移,FSEvents 自动重扫文件夹生成,几秒\n  内完成。**所有规则分类、文件夹设置、显示名、bookmark 权限——完整保留**\n\n**如果你升级到 1.1.3 之后看到空的 sidebar**:升到 1.1.4 启动一次,数据会\n自动回来。原始 `default.store` 始终没被删,只是改名,绝对没丢。\n\n---\n\n## English\n\n### 🚨 Critical Fix\n\n**Lost-workspaces-on-upgrade bug** — an earlier version split SwiftData\nstorage from a single `default.store` into a two-tier `catalog.sqlite` +\n`workspaces/<uuid>.sqlite` layout, **without shipping migration code**.\nUsers upgrading from before that split would launch the new app and see\nan empty sidebar, thinking their data was gone.\n\n**This version runs a one-time migration on launch**:\n- Copies all workspaces / rules / conditions from `default.store` into\n  `catalog.sqlite`\n- Renames the old `default.store` to `default.store.legacy` as a permanent\n  safety backup\n- File index data (per-file rows) is not migrated; FSEvents will rescan\n  folders automatically within seconds. **All rule classifications, folder\n  settings, display names, and bookmark permissions are preserved.**\n\n**If your sidebar went empty after upgrading to 1.1.3**: just upgrade to\n1.1.4 and launch once — your data will come back. The original\n`default.store` was never deleted, only renamed."
+  "dmg_url": "https://gitee.com/lifedever/file-lens/releases/download/v1.1.5/FileLens-1.1.5-arm64.dmg",
+  "notes": "# FileLens v1.1.5\n\n## 中文\n\n### 🔧 Bug 修复\n\n**幽灵文件问题** —— Chrome 等浏览器下载场景下，已经被重命名/删除的 `.crdownload`\n临时文件会\"卡死\"在列表里：磁盘上文件早就不在了，FileLens 仍然显示它们。\n1.1.5 三道闸彻底修掉：\n\n1. enumerator 在文件系统快速变动时偶发对同名 entry 双吐（Chrome 下载/重命名\n   race 可稳定复现），扫描结果按 relativePath dedup，避免数据库累积同名重复行\n2. 启动扫描时自愈：发现历史脏数据（同 relativePath 多条 FileNode）自动留最新\n   一条、其他物理删除\n3. UI 缓存失效条件加强：之前只看 fileCount 数值，\"新增 N + vanished N = 净 0\"\n   场景下缓存永远 stale；现在每次扫描完成都 bump 一个内部代数让 UI 强制刷新\n\n**列表视图右键现在落在整行** —— 之前只有点在文件名列才能弹右键菜单，\n点 size / 日期 / tags / kind 列没反应。1.1.5 整行任意列右键都能弹，跟 Finder 一致。\n\n### 🩹 兼容性\n\n老用户升级后第一次切到任意 workspace，幽灵文件会自动清干净，不需要手动操作。\n\n---\n\n## English\n\n### 🔧 Bug Fixes\n\n**Ghost-file glitch** — `.crdownload` temp files from Chrome/browser downloads\nwould \"stick\" in the list even after being renamed or removed on disk.\n1.1.5 fixes it with three defenses:\n\n1. The macOS file-system enumerator occasionally yields the same dirent twice\n   when filenames change rapidly (Chrome's download → rename race reproduces\n   it reliably). Scan results are now deduped by relative path before they\n   reach the database.\n2. Self-heal at scan time: any existing duplicate rows (legacy dirty data)\n   are collapsed to the newest one and the rest are physically deleted.\n3. UI cache invalidation is no longer keyed only on file count. With \"added N\n   + vanished N = net 0\" scenarios the count never changed and the cache went\n   permanently stale. A monotonic scan generation is now bumped on every scan\n   so the UI always picks up the new presence set.\n\n**Right-click now works on the entire row** in list view. Previously only the\nname column was clickable; clicking size / date / tags / kind columns did\nnothing. Now matches Finder's row-wide context menu.\n\n### 🩹 Compatibility\n\nUpgrade and switch to any workspace once — ghost files clean themselves up\nautomatically, no manual action required."
 }
